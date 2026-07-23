@@ -1,0 +1,100 @@
+name: DataRobot Workload Deploy
+description: >-
+  Build a repository into a container image server-side and deploy it as a
+  DataRobot Workload (Code-to-Workload). Reads a .datarobot.yaml (or
+  .datarobot/workload.yaml) manifest — the single source of truth — and creates
+  or zero-downtime rolling-replaces the workload by name.
+author: DataRobot, Inc.
+
+branding:
+  icon: upload-cloud
+  color: green
+
+# ------------------------------------------------------------------ #
+# The only *required* configuration is the two DataRobot credentials  #
+# (typically from repository secrets) plus a `.datarobot.yaml` (or    #
+# `.datarobot/workload.yaml`) at the root of the repo being deployed. #
+# Everything else has a sensible default.                             #
+# ------------------------------------------------------------------ #
+inputs:
+  datarobot_endpoint:
+    description: >-
+      DataRobot instance URL, e.g. https://app.datarobot.com. May be given with
+      or without a trailing /api/v2 — both work. Falls back to the
+      DATAROBOT_ENDPOINT environment variable if not set.
+    required: false
+    default: ""
+  datarobot_api_token:
+    description: >-
+      DataRobot API key (store it as a repository/organization secret and pass
+      it here, e.g. ${{ secrets.DATAROBOT_API_TOKEN }}). Falls back to the
+      DATAROBOT_API_TOKEN environment variable if not set.
+    required: false
+    default: ""
+  manifest:
+    description: >-
+      Path to the DataRobot manifest. Leave empty to auto-detect
+      .datarobot.yaml then .datarobot/workload.yaml.
+    required: false
+    default: ""
+  workload_name:
+    description: >-
+      Name of the DataRobot workload to create/update. This is the deploy
+      target's identity — the same name is always rolled in place, so repeated
+      pushes to the same target go to the same workload. Leave empty to use the
+      manifest `name`. May contain expressions to give each environment its own
+      workload (e.g. my-service-${{ github.ref_name }}).
+    required: false
+    default: ""
+  dr_cli_version:
+    description: DataRobot CLI version to install (e.g. v0.2.78), or "latest".
+    required: false
+    default: latest
+  wait_timeout:
+    description: Seconds to wait for the image build and for the workload to become healthy.
+    required: false
+    default: "1200"
+  prune_old_artifact:
+    description: >-
+      After a successful redeploy, best-effort delete the previous artifact. A
+      healthy deploy locks its artifact (locked artifacts keep the workload
+      running and can never be deleted), so this only removes a still-draft
+      predecessor — e.g. one left by a deploy that never became healthy.
+    required: false
+    default: "true"
+
+outputs:
+  workload_id:
+    description: The DataRobot workload id.
+    value: ${{ steps.deploy.outputs.workload_id }}
+  workload_name:
+    description: The resolved workload name.
+    value: ${{ steps.deploy.outputs.workload_name }}
+  endpoint:
+    description: The live invoke URL of the workload.
+    value: ${{ steps.deploy.outputs.endpoint }}
+  console_url:
+    description: The DataRobot console (management UI) URL for the workload.
+    value: ${{ steps.deploy.outputs.console_url }}
+  artifact_id:
+    description: The id of the artifact backing the workload.
+    value: ${{ steps.deploy.outputs.artifact_id }}
+
+runs:
+  using: composite
+  steps:
+    - id: deploy
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/scripts/deploy.sh"
+      env:
+        # Credentials: prefer the inputs, fall back to any ambient env vars.
+        DATAROBOT_ENDPOINT: ${{ inputs.datarobot_endpoint || env.DATAROBOT_ENDPOINT }}
+        DATAROBOT_API_TOKEN: ${{ inputs.datarobot_api_token || env.DATAROBOT_API_TOKEN }}
+        # C2W (build-from-source) is feature-flagged in the CLI; always enable it.
+        DATAROBOT_CLI_FEATURE_WORKLOAD: "true"
+        SCRIPT_DIR: ${{ github.action_path }}/scripts
+        DR_MANIFEST: ${{ inputs.manifest }}
+        DR_WORKLOAD_NAME: ${{ inputs.workload_name }}
+        DR_CLI_VERSION: ${{ inputs.dr_cli_version }}
+        DR_WAIT_TIMEOUT: ${{ inputs.wait_timeout }}
+        DR_PRUNE_OLD_ARTIFACT: ${{ inputs.prune_old_artifact }}

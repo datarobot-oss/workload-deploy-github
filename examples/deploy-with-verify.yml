@@ -1,0 +1,45 @@
+# Deploy, then consume the deploy's outputs in a follow-up job.
+#
+# The deploy job exposes its outputs at the job level so any downstream job
+# that `needs:` it can read the endpoint / console URL / ids.
+name: Deploy and verify
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: datarobot
+      url: ${{ steps.deploy.outputs.endpoint }}
+    outputs:
+      endpoint: ${{ steps.deploy.outputs.endpoint }}
+      console_url: ${{ steps.deploy.outputs.console_url }}
+      workload_id: ${{ steps.deploy.outputs.workload_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: deploy
+        uses: datarobot-oss/workload-deploy-github@v1
+        with:
+          datarobot_endpoint: ${{ secrets.DATAROBOT_ENDPOINT }}
+          datarobot_api_token: ${{ secrets.DATAROBOT_API_TOKEN }}
+
+  smoke-test:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit the health endpoint
+        env:
+          ENDPOINT: ${{ needs.deploy.outputs.endpoint }}
+          CONSOLE_URL: ${{ needs.deploy.outputs.console_url }}
+          # The endpoint is served under /api/v2, so it needs the DataRobot token.
+          DATAROBOT_API_TOKEN: ${{ secrets.DATAROBOT_API_TOKEN }}
+        run: |
+          echo "Endpoint: $ENDPOINT"
+          echo "Console:  $CONSOLE_URL"
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer ${DATAROBOT_API_TOKEN}" \
+            "${ENDPOINT}healthz"
+          echo "Health check passed"

@@ -1,0 +1,28 @@
+# Minimal usage — deploy on pushes to the default branch.
+#
+# Copy this into your repo as .github/workflows/deploy.yml, add a .datarobot.yaml
+# to your repo root, and set two repository secrets (Settings ▸ Secrets and
+# variables ▸ Actions):
+#   DATAROBOT_ENDPOINT    e.g. https://app.datarobot.com
+#   DATAROBOT_API_TOKEN   your DataRobot API key
+name: Deploy to DataRobot
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # The clickable environment URL is filled from the deploy step's output.
+    environment:
+      name: datarobot
+      url: ${{ steps.deploy.outputs.endpoint }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: deploy
+        uses: datarobot-oss/workload-deploy-github@v1
+        with:
+          datarobot_endpoint: ${{ secrets.DATAROBOT_ENDPOINT }}
+          datarobot_api_token: ${{ secrets.DATAROBOT_API_TOKEN }}

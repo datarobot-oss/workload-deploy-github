@@ -1,0 +1,64 @@
+name: DataRobot Workload Stop
+description: >-
+  Stop a DataRobot Workload by name (resolved from a .datarobot.yaml /
+  .datarobot/workload.yaml manifest or the workload_name input). Stopping is
+  non-destructive — the workload is stopped, not deleted, so a later deploy or
+  `dr workload start` brings it straight back. The GitHub analog of the GitLab
+  component's on_stop job; wire it to an `on: delete` or manual workflow.
+author: DataRobot, Inc.
+
+branding:
+  icon: stop-circle
+  color: red
+
+inputs:
+  datarobot_endpoint:
+    description: >-
+      DataRobot instance URL, e.g. https://app.datarobot.com. Falls back to the
+      DATAROBOT_ENDPOINT environment variable if not set.
+    required: false
+    default: ""
+  datarobot_api_token:
+    description: >-
+      DataRobot API key (pass from a secret, e.g.
+      ${{ secrets.DATAROBOT_API_TOKEN }}). Falls back to the
+      DATAROBOT_API_TOKEN environment variable if not set.
+    required: false
+    default: ""
+  manifest:
+    description: >-
+      Path to the DataRobot manifest. Leave empty to auto-detect
+      .datarobot.yaml then .datarobot/workload.yaml.
+    required: false
+    default: ""
+  workload_name:
+    description: >-
+      Name of the workload to stop. Leave empty to use the manifest `name`.
+      Should match the workload_name used when deploying.
+    required: false
+    default: ""
+  dr_cli_version:
+    description: DataRobot CLI version to install (e.g. v0.2.78), or "latest".
+    required: false
+    default: latest
+  wait_timeout:
+    description: Seconds to wait for the workload to reach the stopped state.
+    required: false
+    default: "1200"
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      # This action lives in the stop/ subfolder, so GITHUB_ACTION_PATH points
+      # there; the shared scripts live one level up at the repo root.
+      run: bash "$GITHUB_ACTION_PATH/../scripts/stop.sh"
+      env:
+        DATAROBOT_ENDPOINT: ${{ inputs.datarobot_endpoint || env.DATAROBOT_ENDPOINT }}
+        DATAROBOT_API_TOKEN: ${{ inputs.datarobot_api_token || env.DATAROBOT_API_TOKEN }}
+        DATAROBOT_CLI_FEATURE_WORKLOAD: "true"
+        SCRIPT_DIR: ${{ github.action_path }}/../scripts
+        DR_MANIFEST: ${{ inputs.manifest }}
+        DR_WORKLOAD_NAME: ${{ inputs.workload_name }}
+        DR_CLI_VERSION: ${{ inputs.dr_cli_version }}
+        DR_WAIT_TIMEOUT: ${{ inputs.wait_timeout }}

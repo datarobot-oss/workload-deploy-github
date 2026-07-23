@@ -1,0 +1,37 @@
+# Stop a workload when its branch is deleted, or on demand.
+#
+# GitHub has no direct equivalent of GitLab's environment `on_stop`, so the
+# stop action is wired to the `delete` event (fires when a branch/tag is
+# deleted) plus a manual `workflow_dispatch` trigger. This pairs naturally with
+# per-branch "review app" workloads: when the branch goes away, the workload is
+# stopped (not deleted — a later deploy brings it straight back).
+#
+# NOTE: the `delete` event only triggers a workflow that already exists on the
+# default branch.
+name: Stop DataRobot workload
+
+on:
+  delete:
+  workflow_dispatch:
+    inputs:
+      workload_name:
+        description: Workload name to stop (defaults to the manifest name).
+        required: false
+        default: ""
+
+jobs:
+  stop:
+    # For `delete`, only act on branch deletions (ignore tag deletions).
+    if: github.event_name == 'workflow_dispatch' || github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: datarobot-oss/workload-deploy-github/stop@v1
+        with:
+          datarobot_endpoint: ${{ secrets.DATAROBOT_ENDPOINT }}
+          datarobot_api_token: ${{ secrets.DATAROBOT_API_TOKEN }}
+          # For a per-branch review app, derive the same name used at deploy time.
+          # On `delete`, github.event.ref is the deleted branch name.
+          workload_name: >-
+            ${{ github.event.inputs.workload_name
+                || format('my-service-{0}', github.event.ref) }}

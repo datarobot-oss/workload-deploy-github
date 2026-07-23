@@ -1,0 +1,31 @@
+---
+# DataRobot Workload manifest — the single source of truth for a deployment.
+#
+# Place this file at the root of the repository you want to deploy (as
+# `.datarobot.yaml`, or as `.datarobot/workload.yaml`). The GitLab
+# `deploy` component reads it, builds this repo into a container image
+# server-side (from the Dockerfile below), and runs it as a workload on
+# the DataRobot Workload API.
+
+# Workload name. Must be unique in your DataRobot org — re-deploys with the
+# same name roll the existing workload onto the new image (same URL).
+name: my-service
+
+# Business criticality: low | moderate | high | critical
+importance: low
+
+build:
+  # Path to the Dockerfile DataRobot builds server-side (relative to repo root).
+  dockerfile: ./Dockerfile
+  # Port the container listens on. MUST be >= 1024.
+  port: 8080
+  # HTTP path used for readiness and liveness probes.
+  health: /healthz
+
+runtime:
+  # Number of replicas. Use >= 2 for zero-downtime rolling redeploys.
+  replicas: 1
+  # CPU in cores (fractional allowed).
+  cpu: 0.5
+  # Memory: decimal string with unit B/KB/MB/GB (Ki/Mi/Gi are NOT supported).
+  memory: 512MB
