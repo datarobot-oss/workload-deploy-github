@@ -36,6 +36,22 @@ jobs:
           persist-credentials: false
       - name: Lint the YAML
         run: pipx run --spec yamllint==1.32.0 yamllint --strict .
+  shfmt:
+    name: shfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      # A pinned release with its checksum. Indentation comes from .editorconfig.
+      - name: Install shfmt
+        run: |
+          curl -sSfL -o shfmt \
+            https://github.com/mvdan/sh/releases/download/v3.14.1/shfmt_v3.14.1_linux_amd64
+          echo "76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf  shfmt" | sha256sum -c -
+          chmod +x shfmt
+      - name: Check the formatting
+        run: ./shfmt -d scripts tests
   shellcheck:
     name: shellcheck
     runs-on: ubuntu-latest
