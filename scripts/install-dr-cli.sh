@@ -6,7 +6,7 @@
 # never runs a binary it has not verified.
 #
 # Environment:
-#   DR_CLI_VERSION        Release tag, for example v0.13.1. Required.
+#   DR_CLI_VERSION        Release tag, for example v0.14.1. Required.
 #   DR_CLI_SHA256         Checksum of the archive. Overrides the table.
 #   DR_CLI_DOWNLOAD_BASE  Where releases are served, as <base>/<version>/<asset>.
 #                         Defaults to the GitHub releases of datarobot-oss/cli.

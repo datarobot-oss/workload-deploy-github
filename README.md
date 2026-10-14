@@ -56,7 +56,7 @@ Run `actions/checkout` first so the manifest and the source are on disk. In a pr
 
 ## The DataRobot CLI is pinned
 
-The action never installs the `latest` release of the CLI. It installs the release set by `dr_cli_version` (default `v0.13.1`) and checks the SHA-256 checksum of the archive before it runs the binary. The expected checksums are in [`scripts/dr-cli-checksums.txt`](./scripts/dr-cli-checksums.txt), one for each release and platform (Linux and macOS, x86_64 and arm64).
+The action never installs the `latest` release of the CLI. It installs the release set by `dr_cli_version` (default `v0.14.1`) and checks the SHA-256 checksum of the archive before it runs the binary. The expected checksums are in [`scripts/dr-cli-checksums.txt`](./scripts/dr-cli-checksums.txt), one for each release and platform (Linux and macOS, x86_64 and arm64).
 
 Pinning is deliberate. The workload commands of the CLI change between releases. For example, v0.13 renamed `--lock` to `--promote`. A pinned version makes a run repeatable, and a version bump is a reviewed change.
 
@@ -74,7 +74,7 @@ The following table lists the inputs of the action.
 | `promote` | `true` | Make the deployed version permanent by locking its artifact. A draft workload stops after 8 hours. |
 | `dry_run` | `false` | Print the plan and change nothing. |
 | `allow_create` | `false` | Let this run create the workload when the manifest has no `workloadId`. For details, see [The first deploy](#the-first-deploy). |
-| `dr_cli_version` | `v0.13.1` | DataRobot CLI release to install. |
+| `dr_cli_version` | `v0.14.1` | DataRobot CLI release to install. |
 | `dr_cli_sha256` | From the checksum table | Checksum of the CLI archive. Required for a version that isn't in the table. |
 | `dr_cli_download_base` | GitHub releases of `datarobot-oss/cli` | Base URL that serves the CLI releases. Set it to a mirror in a restricted network. |
 
@@ -93,7 +93,7 @@ Run `dr workload up` once on a workstation and commit `.datarobot.yaml`. This is
 
 To create the workload from CI instead, set `allow_create: true` for that one run. The run creates the workload and prints the complete `.datarobot.yaml`, including the `workloadId`, in the job summary. The checkout on the runner is then discarded, so commit the printed file to the repository and turn `allow_create` off. If `allow_create` stays on and the file isn't committed, every run creates another workload. The manifest holds IDs but no secret values, but the job summary is visible to everyone who can read the repository.
 
-The CLI doesn't reject a duplicate. In a test on a staging instance with `dr` v0.13.1, a second `dr workload up` from a clean checkout with the same name and no `workloadId` created a second workload with the same name, and both ran.
+The CLI doesn't reject a duplicate. In a test on a staging instance with `dr` v0.14.1, a second `dr workload up` from a clean checkout with the same name and no `workloadId` created a second workload with the same name, and both ran.
 
 ## Plan on pull requests, apply on merge
 
@@ -150,7 +150,7 @@ The following table lists common errors and their fixes.
 
 ## Status
 
-The scripts have bats tests that run against a stub `dr`. The behavior of the CLI was observed with `dr` v0.13.1: `workload up --yes --promote`, `workload endpoint`, a dry run from a clean checkout, and a second create with the same name. Not tested: the action in a GitHub Actions workflow against a DataRobot instance, macOS runners, and a mirrored `dr_cli_download_base`.
+The scripts have bats tests that run against a stub `dr`. The behavior of the CLI was observed with `dr` v0.14.1: `workload up --yes --promote`, `workload endpoint`, a dry run from a clean checkout, and a second create with the same name. The action ran from a workflow on a GitHub-hosted Linux runner against a DataRobot instance: the guard, a create, a dry run, a roll and a stop. Not tested: macOS runners, a mirrored `dr_cli_download_base`, and `promote: "true"`.
 
 ## Migrate from v1
 

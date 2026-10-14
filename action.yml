@@ -56,7 +56,7 @@ inputs:
       version needs a checksum in scripts/dr-cli-checksums.txt, or
       dr_cli_sha256.
     required: false
-    default: v0.13.1
+    default: v0.14.1
   dr_cli_sha256:
     description: >-
       SHA-256 of the CLI archive for this runner. Overrides the checksum table,

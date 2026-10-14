@@ -32,7 +32,7 @@ inputs:
   dr_cli_version:
     description: DataRobot CLI release to install. The action never uses "latest".
     required: false
-    default: v0.13.1
+    default: v0.14.1
   dr_cli_sha256:
     description: SHA-256 of the CLI archive for this runner. Overrides the checksum table.
     required: false

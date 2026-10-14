@@ -130,3 +130,26 @@ setup() {
 
   [ "$output" -ge 4 ]
 }
+
+# The defaults of both actions and the real checksum table, read from the repo.
+default_cli_version() {
+  awk -v input="dr_cli_version:" '
+    $1 == input { found = 1; next }
+    found && $1 == "default:" { print $2; exit }
+  ' "$BATS_TEST_DIRNAME/../$1"
+}
+
+@test "the default CLI version has a checksum for every supported platform" {
+  version=$(default_cli_version action.yml)
+  [[ "$version" == v* ]]
+
+  for platform in Darwin_arm64 Darwin_x86_64 Linux_arm64 Linux_x86_64; do
+    run grep -c "  dr_${version}_${platform}.tar.gz\$" "$BATS_TEST_DIRNAME/../scripts/dr-cli-checksums.txt"
+    [ "$output" = "1" ]
+  done
+}
+
+@test "the deploy and stop actions default to the same CLI version" {
+  [ -n "$(default_cli_version action.yml)" ]
+  [ "$(default_cli_version action.yml)" = "$(default_cli_version stop/action.yml)" ]
+}
