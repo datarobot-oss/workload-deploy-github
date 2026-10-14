@@ -1,0 +1,11 @@
+extends: default
+
+rules:
+  # GitHub workflows and action manifests do not start with `---`.
+  document-start: disable
+  # `on:` is a key in workflow files, not a boolean.
+  truthy:
+    check-keys: false
+  line-length:
+    max: 140
+    allow-non-breakable-words: true
