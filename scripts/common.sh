@@ -10,7 +10,10 @@
 # Pretty, unambiguous log lines. `die` prints to stderr and exits 1 so a
 # GitHub Actions step fails loudly with a readable reason.
 log() { printf '\n\033[1m▸ %s\033[0m\n' "$*"; }
-die() { printf '\n\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+die() {
+  printf '\n\033[31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
@@ -29,9 +32,12 @@ require_credentials() {
 resolve_manifest() {
   MANIFEST="${DR_MANIFEST:-}"
   if [ -z "$MANIFEST" ]; then
-    if   [ -f .datarobot.yaml ];          then MANIFEST=.datarobot.yaml
-    elif [ -f .datarobot/workload.yaml ]; then MANIFEST=.datarobot/workload.yaml
-    else die "No manifest found. Add a .datarobot.yaml (or .datarobot/workload.yaml) to the repo root, or set the 'manifest' input."
+    if [ -f .datarobot.yaml ]; then
+      MANIFEST=.datarobot.yaml
+    elif [ -f .datarobot/workload.yaml ]; then
+      MANIFEST=.datarobot/workload.yaml
+    else
+      die "No manifest found. Add a .datarobot.yaml (or .datarobot/workload.yaml) to the repo root, or set the 'manifest' input."
     fi
   fi
   [ -f "$MANIFEST" ] || die "Manifest '$MANIFEST' not found."
@@ -71,5 +77,6 @@ if [ "$(id -u)" = "0" ]; then SUDO=""; else SUDO="sudo"; fi
 if [ -w /usr/local/bin ] || [ "$(id -u)" = "0" ]; then
   BIN_DIR="/usr/local/bin"
 else
-  BIN_DIR="$HOME/.local/bin"; mkdir -p "$BIN_DIR"
+  BIN_DIR="$HOME/.local/bin"
+  mkdir -p "$BIN_DIR"
 fi
