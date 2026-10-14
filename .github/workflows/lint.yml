@@ -59,7 +59,5 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      # Warnings and errors only. The info-level findings in the current
-      # scripts go away when the scripts are rewritten.
       - name: Lint the shell scripts
-        run: shellcheck --severity=warning scripts/*.sh tests/run.sh
+        run: shellcheck scripts/*.sh tests/run.sh tests/test_helper.bash
