@@ -91,7 +91,7 @@ The following table lists the outputs of the action. Each run also writes both v
 
 Run `dr workload up` once on a workstation and commit `.datarobot.yaml`. This is the supported path.
 
-To create the workload from CI instead, set `allow_create: true` for that one run. The run creates the workload and prints the `workloadId` in the log and in the job summary. The checkout on the runner is then discarded, so commit `workloadId: WORKLOAD_ID` to `.datarobot.yaml` and turn `allow_create` off. `WORKLOAD_ID` is the ID that the run printed. If `allow_create` stays on and the ID isn't committed, every run creates another workload.
+To create the workload from CI instead, set `allow_create: true` for that one run. The run creates the workload and prints the complete `.datarobot.yaml`, including the `workloadId`, in the job summary. The checkout on the runner is then discarded, so commit the printed file to the repository and turn `allow_create` off. If `allow_create` stays on and the file isn't committed, every run creates another workload. The manifest holds IDs but no secret values, but the job summary is visible to everyone who can read the repository.
 
 The CLI doesn't reject a duplicate. In a test on a staging instance with `dr` v0.13.1, a second `dr workload up` from a clean checkout with the same name and no `workloadId` created a second workload with the same name, and both ran.
 

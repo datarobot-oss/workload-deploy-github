@@ -56,7 +56,11 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     echo "- Endpoint: $endpoint"
     if [ -z "$id_before" ]; then
       echo
-      echo "> **Commit \`workloadId: $workload_id\` to \`.datarobot.yaml\`.** This run created the workload, and the checkout is discarded. Without that line, the next run creates another workload."
+      echo "> **Commit this \`.datarobot.yaml\`.** This run created the workload, and the checkout is discarded. Without the \`workloadId\` line, the next run creates another workload."
+      echo
+      echo '```yaml'
+      cat "$manifest"
+      echo '```'
     fi
   } >>"$GITHUB_STEP_SUMMARY"
 fi

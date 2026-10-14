@@ -78,14 +78,26 @@ setup() {
   ! grep -q "Commit" "$GITHUB_STEP_SUMMARY"
 }
 
-@test "a deploy that creates a workload tells the reader which line to commit" {
-  printf 'name: app\n' >"$APP/.datarobot.yaml"
+@test "a deploy that creates a workload prints the whole manifest to commit" {
+  printf 'name: app\nimportance: low\n' >"$APP/.datarobot.yaml"
+
+  DR_STUB_WORKLOAD_ID=wl-created run "$DEPLOY"
+
+  [ "$status" -eq 0 ]
+  grep -q "Commit this" "$GITHUB_STEP_SUMMARY"
+  grep -q "workloadId: wl-created" "$GITHUB_STEP_SUMMARY"
+  grep -q "importance: low" "$GITHUB_STEP_SUMMARY"
+  grep -qx "workload_id=wl-created" "$GITHUB_OUTPUT"
+}
+
+@test "a deploy that creates a workload without any manifest still prints the manifest" {
+  rm "$APP/.datarobot.yaml"
 
   DR_STUB_WORKLOAD_ID=wl-created run "$DEPLOY"
 
   [ "$status" -eq 0 ]
   grep -q "workloadId: wl-created" "$GITHUB_STEP_SUMMARY"
-  grep -qx "workload_id=wl-created" "$GITHUB_OUTPUT"
+  grep -q "name: app" "$GITHUB_STEP_SUMMARY"
 }
 
 @test "stop runs workload stop with --yes and the working directory" {

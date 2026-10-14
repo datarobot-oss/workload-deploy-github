@@ -31,8 +31,14 @@ case "$1 $2" in
     exit 0
     ;;
   esac
-  grep -qs '^workloadId:' "$dir/.datarobot.yaml" ||
-    printf 'workloadId: %s\nname: app\n' "${DR_STUB_WORKLOAD_ID:-wl-new}" >"$dir/.datarobot.yaml"
+  if ! grep -qs '^workloadId:' "$dir/.datarobot.yaml"; then
+    # Like the real CLI: add the ID at the top and keep the rest of the manifest.
+    {
+      printf 'workloadId: %s\n' "${DR_STUB_WORKLOAD_ID:-wl-new}"
+      cat "$dir/.datarobot.yaml" 2>/dev/null || printf 'name: app\n'
+    } >"$dir/.datarobot.yaml.new"
+    mv "$dir/.datarobot.yaml.new" "$dir/.datarobot.yaml"
+  fi
   ;;
 "workload endpoint")
   echo "${DR_STUB_ENDPOINT:-https://dr.example.com/workloads/wl/}"
