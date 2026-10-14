@@ -1,0 +1,65 @@
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      # A pinned release with its checksum. actionlint runs shellcheck on every
+      # run: block when shellcheck is on PATH, which it is on ubuntu-latest.
+      - name: Install actionlint
+        run: |
+          curl -sSfL -o actionlint.tar.gz \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint.tar.gz" | sha256sum -c -
+          tar -xzf actionlint.tar.gz actionlint
+      # The examples are not under .github/workflows, so name them.
+      - name: Lint the workflows and the examples
+        run: ./actionlint -color .github/workflows/*.yml examples/*.yml
+  yamllint:
+    name: yamllint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Lint the YAML
+        run: pipx run --spec yamllint==1.32.0 yamllint --strict .
+  shfmt:
+    name: shfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      # A pinned release with its checksum. Indentation comes from .editorconfig.
+      - name: Install shfmt
+        run: |
+          curl -sSfL -o shfmt \
+            https://github.com/mvdan/sh/releases/download/v3.14.1/shfmt_v3.14.1_linux_amd64
+          echo "76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf  shfmt" | sha256sum -c -
+          chmod +x shfmt
+      - name: Check the formatting
+        run: ./shfmt -d scripts tests
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      # Warnings and errors only. The info-level findings in the current
+      # scripts go away when the scripts are rewritten.
+      - name: Lint the shell scripts
+        run: shellcheck --severity=warning scripts/*.sh tests/run.sh

@@ -36,20 +36,27 @@ dr workload stop "$WID"
 
 # ---------- 3. Wait for it to reach 'stopped' --------------------- #
 # The stop is asynchronous (stopping → stopped); confirm it settled.
-DEADLINE=$(( $(date +%s) + DR_WAIT_TIMEOUT ))
+DEADLINE=$(($(date +%s) + DR_WAIT_TIMEOUT))
 while :; do
   ST="$(dr workload get "$WID" --output-format json | jq -r '.status // .data.status // "unknown"' | tr '[:upper:]' '[:lower:]')"
   case "$ST" in
-    stopped) echo "  ✓ workload stopped"; break ;;
-    failed)  die "Workload entered a failed state while stopping. Check: dr workload logs $WID" ;;
-    *)       [ "$(date +%s)" -lt "$DEADLINE" ] || die "Timed out waiting for the workload to stop."; printf '  status: %s\r' "$ST"; sleep 10 ;;
+  stopped)
+    echo "  ✓ workload stopped"
+    break
+    ;;
+  failed) die "Workload entered a failed state while stopping. Check: dr workload logs $WID" ;;
+  *)
+    [ "$(date +%s)" -lt "$DEADLINE" ] || die "Timed out waiting for the workload to stop."
+    printf '  status: %s\r' "$ST"
+    sleep 10
+    ;;
   esac
 done
 
 printf '\n\033[32m✓ Stopped %s\033[0m — restart with a new deploy or `dr workload start %s`.\n\n' "$WORKLOAD_NAME" "$WID"
 
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-  echo "## ✓ Stopped \`$WORKLOAD_NAME\` (\`$WID\`)" >> "$GITHUB_STEP_SUMMARY"
-  echo "" >> "$GITHUB_STEP_SUMMARY"
-  echo "Non-destructive — a later deploy or \`dr workload start $WID\` brings it back." >> "$GITHUB_STEP_SUMMARY"
+  echo "## ✓ Stopped \`$WORKLOAD_NAME\` (\`$WID\`)" >>"$GITHUB_STEP_SUMMARY"
+  echo "" >>"$GITHUB_STEP_SUMMARY"
+  echo "Non-destructive — a later deploy or \`dr workload start $WID\` brings it back." >>"$GITHUB_STEP_SUMMARY"
 fi

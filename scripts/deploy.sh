@@ -39,7 +39,7 @@ log "Deploying workload '$WORKLOAD_NAME' (importance=$IMPORTANCE, port=$PORT, re
 
 # ---------- 2. Render the artifact spec from the manifest --------- #
 jq -n --arg name "${WORKLOAD_NAME}-artifact" --argjson port "$PORT" \
-      --arg df "$DOCKERFILE" --arg health "$HEALTH" '{
+  --arg df "$DOCKERFILE" --arg health "$HEALTH" '{
   name: $name, type: "service",
   spec: { containerGroups: [ { name: "default", containers: [ {
     name: "main", imageUri: "placeholder:latest", primary: true, port: $port,
@@ -49,13 +49,16 @@ jq -n --arg name "${WORKLOAD_NAME}-artifact" --argjson port "$PORT" \
     livenessProbe: { path: $health, port: $port, initialDelaySeconds: 30,
       periodSeconds: 15, timeoutSeconds: 5, failureThreshold: 3, scheme: "HTTP" }
   } ] } ] }
-}' > artifact.spec.json
+}' >artifact.spec.json
 
 # ---------- 3. Create artifact, upload source, build image -------- #
 log "Creating draft artifact.."
 OUT="$(dr artifact create --spec-file artifact.spec.json --output-format json)"
 AID="$(echo "$OUT" | jq -r '.id // .artifactId // .data.id // empty')"
-[ -n "$AID" ] || { echo "$OUT"; die "Could not parse artifact id."; }
+[ -n "$AID" ] || {
+  echo "$OUT"
+  die "Could not parse artifact id."
+}
 echo "  artifact: $AID"
 
 log "Uploading source (respects .dockerignore / .wapiignore).."
@@ -65,16 +68,30 @@ dr artifact code sync --yes --dir .
 log "Building the container image server-side.."
 OUT="$(dr artifact build create "$AID" --output-format json)"
 BID="$(echo "$OUT" | jq -r '.buildIds[0] // .id // .data.buildIds[0] // .data[0].id // empty')"
-[ -n "$BID" ] || { echo "$OUT"; die "Could not parse build id."; }
+[ -n "$BID" ] || {
+  echo "$OUT"
+  die "Could not parse build id."
+}
 echo "  build: $BID"
 
-DEADLINE=$(( $(date +%s) + DR_WAIT_TIMEOUT ))
+DEADLINE=$(($(date +%s) + DR_WAIT_TIMEOUT))
 while :; do
   ST="$(dr artifact build get "$BID" --output-format json | jq -r '.status // .data.status // "unknown"' | tr '[:lower:]' '[:upper:]')"
   case "$ST" in
-    COMPLETED) echo "  ✓ build completed"; break ;;
-    FAILED)    echo "  build log tail:"; dr artifact build logs "$BID" 2>/dev/null | tail -40 || true; die "Image build FAILED." ;;
-    *)         [ "$(date +%s)" -lt "$DEADLINE" ] || die "Timed out waiting for image build."; printf '  status: %s\r' "$ST"; sleep 10 ;;
+  COMPLETED)
+    echo "  ✓ build completed"
+    break
+    ;;
+  FAILED)
+    echo "  build log tail:"
+    dr artifact build logs "$BID" 2>/dev/null | tail -40 || true
+    die "Image build FAILED."
+    ;;
+  *)
+    [ "$(date +%s)" -lt "$DEADLINE" ] || die "Timed out waiting for image build."
+    printf '  status: %s\r' "$ST"
+    sleep 10
+    ;;
   esac
 done
 
@@ -87,20 +104,24 @@ AID_PRELOCKED="false"
 if [ -z "$WID" ]; then
   log "No existing workload named '$WORKLOAD_NAME' — creating it.."
   jq -n --arg name "$WORKLOAD_NAME" --arg imp "$IMPORTANCE" --arg aid "$AID" \
-        --argjson replicas "$REPLICAS" --argjson cpu "$CPU" --arg mem "$MEM" '{
+    --argjson replicas "$REPLICAS" --argjson cpu "$CPU" --arg mem "$MEM" '{
     name: $name, importance: $imp, artifactId: $aid,
     runtime: { containerGroups: [ { name: "default", replicaCount: $replicas,
       containers: [ { name: "main", resourceAllocation: { cpu: $cpu, memory: $mem } } ] } ] }
-  }' > workload.spec.json
+  }' >workload.spec.json
   OUT="$(dr workload create --spec-file workload.spec.json --output-format json)"
   WID="$(echo "$OUT" | jq -r '.id // .workloadId // .data.id // empty')"
-  [ -n "$WID" ] || { echo "$OUT"; die "Could not parse workload id."; }
+  [ -n "$WID" ] || {
+    echo "$OUT"
+    die "Could not parse workload id."
+  }
   OLD_AID=""
 else
   log "Found existing workload '$WORKLOAD_NAME' ($WID) — rolling onto the new image.."
   # dr CLI has no replacement verb yet, so call the REST endpoint directly.
   # Normalize the endpoint to a bare .../api/v2 (the CLI accepts either form).
-  API="${DATAROBOT_ENDPOINT%/}"; API="${API%/api/v2}/api/v2"
+  API="${DATAROBOT_ENDPOINT%/}"
+  API="${API%/api/v2}/api/v2"
   OLD_AID="$(dr workload get "$WID" --output-format json | jq -r '.artifactId // .data.artifactId // empty')"
 
   # The replacement endpoint rejects the request (422, "Artifact status
@@ -128,35 +149,52 @@ else
   CODE="$(curl -sS -o /tmp/repl.out -w '%{http_code}' -X POST "$API/workloads/$WID/replacement/" \
     -H "Authorization: Bearer $DATAROBOT_API_TOKEN" -H "Content-Type: application/json" -d "$BODY")"
   case "$CODE" in
-    200|201|202) : ;;
-    *) cat /tmp/repl.out; die "Replacement request failed (HTTP $CODE)." ;;
+  200 | 201 | 202) : ;;
+  *)
+    cat /tmp/repl.out
+    die "Replacement request failed (HTTP $CODE)."
+    ;;
   esac
   # Wait for the rolling swap to finish: the endpoint returns 404 when none is active.
-  DEADLINE=$(( $(date +%s) + DR_WAIT_TIMEOUT ))
+  DEADLINE=$(($(date +%s) + DR_WAIT_TIMEOUT))
   sleep 5
   while :; do
     CODE="$(curl -sS -o /tmp/repl.out -w '%{http_code}' "$API/workloads/$WID/replacement/" \
       -H "Authorization: Bearer $DATAROBOT_API_TOKEN")"
-    [ "$CODE" = "404" ] && { echo "  ✓ rolling replacement complete"; break; }
+    [ "$CODE" = "404" ] && {
+      echo "  ✓ rolling replacement complete"
+      break
+    }
     RST="$(jq -r '.status // .data.status // "in-progress"' /tmp/repl.out 2>/dev/null | tr '[:upper:]' '[:lower:]')"
     case "$RST" in
-      *fail*|*error*) cat /tmp/repl.out; die "Rolling replacement failed." ;;
+    *fail* | *error*)
+      cat /tmp/repl.out
+      die "Rolling replacement failed."
+      ;;
     esac
     [ "$(date +%s)" -lt "$DEADLINE" ] || die "Timed out waiting for rolling replacement."
-    printf '  replacement: %s\r' "$RST"; sleep 10
+    printf '  replacement: %s\r' "$RST"
+    sleep 10
   done
 fi
 echo "  workload: $WID"
 
 # ---------- 5. Wait until the workload is healthy ----------------- #
 log "Waiting for workload '$WORKLOAD_NAME' to become running.."
-DEADLINE=$(( $(date +%s) + DR_WAIT_TIMEOUT ))
+DEADLINE=$(($(date +%s) + DR_WAIT_TIMEOUT))
 while :; do
   ST="$(dr workload get "$WID" --output-format json | jq -r '.status // .data.status // "unknown"' | tr '[:upper:]' '[:lower:]')"
   case "$ST" in
-    running)           echo "  ✓ workload running"; break ;;
-    failed|terminated) die "Workload is $ST. Check: dr workload logs $WID" ;;
-    *)                 [ "$(date +%s)" -lt "$DEADLINE" ] || die "Timed out waiting for workload."; printf '  status: %s\r' "$ST"; sleep 10 ;;
+  running)
+    echo "  ✓ workload running"
+    break
+    ;;
+  failed | terminated) die "Workload is $ST. Check: dr workload logs $WID" ;;
+  *)
+    [ "$(date +%s)" -lt "$DEADLINE" ] || die "Timed out waiting for workload."
+    printf '  status: %s\r' "$ST"
+    sleep 10
+    ;;
   esac
 done
 
@@ -178,7 +216,8 @@ ENDPOINT="$(dr workload get "$WID" --output-format json | jq -r '.endpoint // .d
 [ -n "$ENDPOINT" ] && [ "$ENDPOINT" != "null" ] || ENDPOINT="$(dr workload endpoint "$WID" 2>/dev/null || true)"
 # The DataRobot console (management UI) for this workload. Derive the app host
 # from the endpoint you were given (strip any /api/v2 suffix).
-APP_HOST="${DATAROBOT_ENDPOINT%/}"; APP_HOST="${APP_HOST%/api/v2}"
+APP_HOST="${DATAROBOT_ENDPOINT%/}"
+APP_HOST="${APP_HOST%/api/v2}"
 CONSOLE_URL="$APP_HOST/console-nextgen/workloads/$WID/overview"
 
 # Expose the values as GitHub Actions step outputs so later steps/jobs can
@@ -190,7 +229,7 @@ if [ -n "${GITHUB_OUTPUT:-}" ]; then
     echo "endpoint=$ENDPOINT"
     echo "console_url=$CONSOLE_URL"
     echo "artifact_id=$AID"
-  } >> "$GITHUB_OUTPUT"
+  } >>"$GITHUB_OUTPUT"
 fi
 
 # ---------- 8. Print a prominent summary -------------------------- #
@@ -215,7 +254,7 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     echo "| **Manage in DataRobot** | [$CONSOLE_URL]($CONSOLE_URL) |"
     echo "| **Workload id** | \`$WID\` |"
     echo "| **Artifact id** | \`$AID\` |"
-  } >> "$GITHUB_STEP_SUMMARY"
+  } >>"$GITHUB_STEP_SUMMARY"
 fi
 
 # ---------- 9. Best-effort cleanup -------------------------------- #
