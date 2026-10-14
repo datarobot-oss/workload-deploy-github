@@ -78,7 +78,14 @@ make_release() {
   ASSET="dr_${version}_${platform}.tar.gz"
   src="$BATS_TEST_TMPDIR/release-src"
   mkdir -p "$src" "$BATS_TEST_TMPDIR/releases/$version"
-  printf '#!/usr/bin/env bash\necho "stub dr %s"\n' "$version" >"$src/dr"
+  # The stub prints a flood of extra lines when STUB_VERSION_NOISE is set.
+  cat >"$src/dr" <<EOF
+#!/usr/bin/env bash
+echo "stub dr $version"
+if [ -n "\${STUB_VERSION_NOISE:-}" ]; then
+  seq 1 100000
+fi
+EOF
   chmod +x "$src/dr"
   tar -czf "$BATS_TEST_TMPDIR/releases/$version/$ASSET" -C "$src" dr
   ASSET_SHA=$(sha256_of "$BATS_TEST_TMPDIR/releases/$version/$ASSET")

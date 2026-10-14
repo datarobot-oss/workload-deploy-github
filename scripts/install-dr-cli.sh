@@ -61,4 +61,7 @@ if [ -n "${GITHUB_PATH:-}" ]; then
   echo "$install_dir" >>"$GITHUB_PATH"
 fi
 
-"$install_dir/dr" --version | head -n 1
+# Capture the output first. Piping into `head` can fail the step with SIGPIPE
+# under pipefail when the CLI prints more than one line.
+version_output=$("$install_dir/dr" --version)
+printf '%s\n' "${version_output%%$'\n'*}"

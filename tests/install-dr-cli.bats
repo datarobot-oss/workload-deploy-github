@@ -29,6 +29,29 @@ setup() {
   [[ "$output" == *"stub dr v9.9.9"* ]]
 }
 
+@test "installs and prints one version line when dr --version is chatty" {
+  make_release v9.9.9
+  echo "$ASSET_SHA  $ASSET" >"$DR_CLI_CHECKSUMS"
+
+  STUB_VERSION_NOISE=1 DR_CLI_VERSION=v9.9.9 run "$SCRIPT"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"stub dr v9.9.9"* ]]
+  [[ "$output" != *"99999"* ]]
+}
+
+@test "fails when the installed dr cannot run" {
+  make_release v9.9.9
+  echo "$ASSET_SHA  $ASSET" >"$DR_CLI_CHECKSUMS"
+  printf '#!/usr/bin/env bash\nexit 3\n' >"$BATS_TEST_TMPDIR/release-src/dr"
+  tar -czf "$BATS_TEST_TMPDIR/releases/v9.9.9/$ASSET" -C "$BATS_TEST_TMPDIR/release-src" dr
+  echo "$(sha256_of "$BATS_TEST_TMPDIR/releases/v9.9.9/$ASSET")  $ASSET" >"$DR_CLI_CHECKSUMS"
+
+  DR_CLI_VERSION=v9.9.9 run "$SCRIPT"
+
+  [ "$status" -ne 0 ]
+}
+
 @test "adds the install directory to GITHUB_PATH" {
   make_release v9.9.9
   echo "$ASSET_SHA  $ASSET" >"$DR_CLI_CHECKSUMS"
