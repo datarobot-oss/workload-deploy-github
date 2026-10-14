@@ -46,8 +46,8 @@ jobs:
           # The endpoint is served under /api/v2, so the call needs the token.
           DATAROBOT_API_TOKEN: ${{ secrets.DATAROBOT_API_TOKEN }}
         # The endpoint ends with a slash. Replace /healthz with the health path
-        # of the app. A route can answer 503 for a few seconds after the
-        # workload is running, so the loop retries.
+        # of the app. A route can answer 401 or 503 for several seconds after
+        # the workload is running, so the loop retries.
         run: |
           for attempt in 1 2 3 4 5 6; do
             code=$(curl -s -o /dev/null -w '%{http_code}' \
