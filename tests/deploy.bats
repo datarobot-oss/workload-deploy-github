@@ -30,6 +30,20 @@ setup() {
   grep -qx "workload up --yes --dir $APP --promote" "$DR_CALLS"
 }
 
+@test "deploy gives dr an endpoint that ends in /api/v2" {
+  DATAROBOT_ENDPOINT=https://app.example.com run "$DEPLOY"
+
+  [ "$status" -eq 0 ]
+  grep -qx "https://app.example.com/api/v2" "$DR_CALLS.endpoint"
+}
+
+@test "stop gives dr an endpoint that ends in /api/v2" {
+  DATAROBOT_ENDPOINT=https://app.example.com run "$STOP"
+
+  [ "$status" -eq 0 ]
+  grep -qx "https://app.example.com/api/v2" "$DR_CALLS.endpoint"
+}
+
 @test "deploy leaves out --promote when promote is false" {
   DR_PROMOTE=false run "$DEPLOY"
 

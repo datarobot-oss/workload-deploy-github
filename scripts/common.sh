@@ -19,6 +19,19 @@ require_credentials() {
   [ -n "${DATAROBOT_API_TOKEN:-}" ] || die "DATAROBOT_API_TOKEN is not set. Pass the datarobot_api_token input from a secret or set the variable."
 }
 
+# Make DATAROBOT_ENDPOINT end in /api/v2, which the CLI requires: it gets HTTP
+# 404 from a bare host. Accept the URL with or without the suffix and with or
+# without a trailing slash, as v1 of the action did.
+normalize_endpoint() {
+  local endpoint="${DATAROBOT_ENDPOINT%/}"
+  case "$endpoint" in
+  */api/v2) ;;
+  *) endpoint="$endpoint/api/v2" ;;
+  esac
+  DATAROBOT_ENDPOINT="$endpoint"
+  export DATAROBOT_ENDPOINT
+}
+
 # Print the path of the nearest .datarobot.yaml, searching upward from $1 the
 # way the CLI does. The search stops at DR_SEARCH_ROOT, which defaults to the
 # workspace in CI, so a manifest outside the checkout is never used. Return 1

@@ -29,4 +29,4 @@ if [ "${DR_ALLOW_CREATE:-false}" = true ]; then
   exit 0
 fi
 
-die "No workloadId found in .datarobot.yaml under $dir. Run 'dr workload up' once on a machine you control and commit the manifest, so CI rolls that workload. Without an ID, every run tries to create a new one. To create the workload from CI this once, set allow_create: true."
+die "No workloadId found in .datarobot.yaml (searched from '$dir' upward). Run 'dr workload up' once on a machine you control and commit the manifest, so CI rolls that workload. Without an ID, every run tries to create a new one. To create the workload from CI this once, set allow_create: true."

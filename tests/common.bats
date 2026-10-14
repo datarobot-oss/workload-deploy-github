@@ -57,6 +57,33 @@ call() {
   [ "$status" -eq 1 ]
 }
 
+# Print the DATAROBOT_ENDPOINT that normalize_endpoint leaves behind.
+normalized() {
+  DATAROBOT_ENDPOINT="$1" bash -c 'source "$1"; normalize_endpoint; printf %s "$DATAROBOT_ENDPOINT"' _ "$COMMON"
+}
+
+@test "normalize_endpoint adds /api/v2 when it is missing" {
+  run normalized https://app.example.com
+  [ "$output" = "https://app.example.com/api/v2" ]
+}
+
+@test "normalize_endpoint keeps /api/v2 when it is present" {
+  run normalized https://app.example.com/api/v2
+  [ "$output" = "https://app.example.com/api/v2" ]
+}
+
+@test "normalize_endpoint drops trailing slashes" {
+  run normalized https://app.example.com/
+  [ "$output" = "https://app.example.com/api/v2" ]
+  run normalized https://app.example.com/api/v2/
+  [ "$output" = "https://app.example.com/api/v2" ]
+}
+
+@test "normalize_endpoint keeps a path prefix" {
+  run normalized https://example.com/datarobot
+  [ "$output" = "https://example.com/datarobot/api/v2" ]
+}
+
 @test "find_manifest prints the manifest in the given directory" {
   touch .datarobot.yaml
   run call find_manifest .

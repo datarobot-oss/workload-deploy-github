@@ -18,6 +18,7 @@ install_stubs() {
   cat >"$BATS_TEST_TMPDIR/bin/dr" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >>"$DR_CALLS"
+echo "$DATAROBOT_ENDPOINT" >>"$DR_CALLS.endpoint"
 dir=.
 args=("$@")
 for i in "${!args[@]}"; do

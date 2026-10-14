@@ -68,7 +68,7 @@ The following table lists the inputs of the action.
 
 | Input | Default | Description |
 | --- | --- | --- |
-| `datarobot_endpoint` | The `DATAROBOT_ENDPOINT` variable | DataRobot instance URL. |
+| `datarobot_endpoint` | The `DATAROBOT_ENDPOINT` variable | DataRobot instance URL. The `/api/v2` suffix is optional, because the action adds it when it is missing. |
 | `datarobot_api_token` | The `DATAROBOT_API_TOKEN` variable | DataRobot API key. Pass it from a secret. |
 | `working_directory` | `.` | App directory, relative to the workspace. The action searches for the manifest in this directory and in the parent directories, up to the workspace. |
 | `promote` | `true` | Make the deployed version permanent by locking its artifact. A draft workload stops after 8 hours. |
@@ -144,6 +144,7 @@ The following table lists common errors and their fixes.
 | `No checksum for dr_...` | The version isn't in `scripts/dr-cli-checksums.txt`. Set `dr_cli_sha256`, or use a listed version. |
 | `The checksum of ... does not match` | The archive isn't the one that the table or `dr_cli_sha256` names. Check the mirror and the version. |
 | `DATAROBOT_ENDPOINT is not set` | Pass the `datarobot_endpoint` and `datarobot_api_token` inputs from secrets. |
+| `answered HTTP 404, so the CLI could not verify your credentials` | The endpoint isn't the URL of a DataRobot instance. Check the host in `datarobot_endpoint`. |
 | `HTTP 422` about a pending replacement | Two deploys ran at once. Add a `concurrency` group. |
 | The workload stops after 8 hours | The version was deployed with `promote: "false"`. Deploy again with `promote` on. |
 

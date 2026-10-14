@@ -12,8 +12,9 @@ branding:
 inputs:
   datarobot_endpoint:
     description: >-
-      DataRobot instance URL, for example https://app.datarobot.com. Falls back
-      to the DATAROBOT_ENDPOINT environment variable.
+      DataRobot instance URL, for example https://app.datarobot.com. The
+      /api/v2 suffix is optional. Falls back to the DATAROBOT_ENDPOINT
+      environment variable.
     required: false
     default: ""
   datarobot_api_token:

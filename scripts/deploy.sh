@@ -13,6 +13,7 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 require_credentials
+normalize_endpoint
 
 dir="${DR_WORKING_DIRECTORY:-.}"
 
