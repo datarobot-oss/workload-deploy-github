@@ -1,60 +1,22 @@
-# DataRobot Workload Deploy — GitHub Action
+# DataRobot Workload Deploy: GitHub Action
 
-Deploy any Git repository to a [DataRobot Workload](https://docs.datarobot.com)
-straight from GitHub Actions. Point it at a repo that has a `.datarobot.yaml`
-(or `.datarobot/workload.yaml`) and a `Dockerfile`, set two secrets, and the
-action does the rest: it installs the DataRobot CLI, builds your repo into a
-container image **server-side** (Code-to-Workload), and creates — or
-zero-downtime rolling-replaces — the workload.
+Deploy a repository to a [DataRobot Workload](https://docs.datarobot.com) from GitHub Actions. The action installs a pinned DataRobot CLI and runs `dr workload up`, which builds your `Dockerfile` on the platform and rolls the workload onto the new image.
 
-The manifest is the **single source of truth**. There is nothing else to wire up.
+The workload is the one named by the `workloadId` in your committed `.datarobot.yaml`. Every run rolls that same workload, so the endpoint stays the same.
 
-> This is the GitHub Actions port of the GitLab CI/CD component
-> [`datarobot-oss/workload-deploy`](https://gitlab.com/datarobot-oss/workload-deploy).
-> Same manifest, same behavior; GitHub-native packaging (a composite action),
-> outputs, and environments.
+> **Version 2 replaces the manifest.** v1 read its own manifest format and found the workload by name. v2 uses the `.datarobot.yaml` that the DataRobot CLI writes. See [Migrating from v1](#migrating-from-v1).
 
----
+## How it works
+
+1. **Deploy once from your machine.** Run `dr workload up` in your app directory. It writes `.datarobot.yaml`, deploys, and adds a `workloadId` line to the file. Commit the file.
+2. **Add the action.** Set two secrets and add a workflow, as in [Quick start](#quick-start).
+3. **Push.** Each run checks that the manifest has a `workloadId`, installs the pinned CLI, and runs `dr workload up --yes --promote`.
+
+The first deploy runs on your machine because the CLI finds its workload through the `workloadId` in the manifest. A CI checkout starts clean, so a manifest without that line would make every run create a new workload. The action refuses to run in that case. See [The first deploy](#the-first-deploy).
 
 ## Quick start
 
-### 1. Add a manifest to your repo
-
-Create `.datarobot.yaml` at the root of the repo you want to deploy (see
-[`examples/.datarobot.yaml`](./examples/.datarobot.yaml) for a fully annotated copy):
-
-```yaml
-name: my-service        # unique workload name
-importance: low         # low | moderate | high | critical
-build:
-  dockerfile: ./Dockerfile
-  port: 8080            # container listen port, must be >= 1024
-  health: /healthz      # readiness/liveness probe path
-runtime:
-  replicas: 1           # use >= 2 for zero-downtime redeploys
-  cpu: 0.5              # cores
-  memory: 512MB         # B/KB/MB/GB (not Ki/Mi/Gi)
-```
-
-Your repo also needs the `Dockerfile` referenced above. DataRobot builds it for
-you — you don't need Docker, a registry, or push credentials.
-
-### 2. Add two secrets
-
-In your project: **Settings ▸ Secrets and variables ▸ Actions**, add:
-
-| Secret                | Value                            |
-|-----------------------|----------------------------------|
-| `DATAROBOT_ENDPOINT`  | e.g. `https://app.datarobot.com` |
-| `DATAROBOT_API_TOKEN` | your DataRobot API key           |
-
-`DATAROBOT_ENDPOINT` may be given with or without the trailing `/api/v2` — both
-work. Generate the token from **DataRobot ▸ Developer Tools ▸ API Keys**.
-
-### 3. Add a workflow
-
-Create `.github/workflows/deploy.yml` in your project (see
-[`examples/deploy.yml`](./examples/deploy.yml)):
+Add two secrets (Settings > Secrets and variables > Actions): `DATAROBOT_ENDPOINT`, for example `https://app.datarobot.com`, and `DATAROBOT_API_TOKEN`, a DataRobot API key. Then add `.github/workflows/deploy.yml`:
 
 ```yaml
 name: Deploy to DataRobot
@@ -63,159 +25,137 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-datarobot
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment:
       name: datarobot
       url: ${{ steps.deploy.outputs.endpoint }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - id: deploy
-        uses: datarobot-oss/workload-deploy-github@v1
+        uses: datarobot-oss/workload-deploy-github@v2
         with:
           datarobot_endpoint: ${{ secrets.DATAROBOT_ENDPOINT }}
           datarobot_api_token: ${{ secrets.DATAROBOT_API_TOKEN }}
 ```
 
-That's it. On the next push to `main`, the job builds and deploys your workload
-and prints its endpoint URL. The `id: deploy` + `environment.url` wiring surfaces
-a clickable link to the live app on the run and the environment page.
+Run `actions/checkout` first so the manifest and your source are on disk. Pin the action to a full commit SHA in a production repository.
 
-> **Checkout first.** Unlike the GitLab component, a GitHub Action does not
-> automatically have your repository on disk — always run `actions/checkout`
-> before this action so it can read the manifest and upload your source.
+## The DataRobot CLI is pinned
 
----
+The action never installs `latest`. It installs the release named by `dr_cli_version` (default `v0.13.1`) and checks the archive's SHA-256 before it runs the binary. The expected checksums are in [`scripts/dr-cli-checksums.txt`](./scripts/dr-cli-checksums.txt), one per release and platform (Linux and macOS, x86_64 and arm64).
 
-## What the action does
+This is deliberate. The CLI's workload commands are still changing between releases, and a new release can rename a flag or change what a command does. A pinned version makes a run repeatable, and a bump is a reviewed change.
 
-1. Installs `curl`, `jq`, `yq`, `git`, and the **DataRobot CLI** (only what's
-   missing — GitHub-hosted `ubuntu-latest` already has most of these).
-2. Locates the manifest (`.datarobot.yaml` → `.datarobot/workload.yaml`).
-3. Renders an artifact spec from the manifest and creates a draft artifact.
-4. Uploads your source (respecting `.dockerignore` / `.wapiignore`) and builds
-   the image **server-side**, waiting for the build to complete.
-5. Looks up a workload by `name`:
-   - **not found** → creates it;
-   - **found** → issues a **rolling replacement** onto the new image (same URL).
-     If the existing workload's artifact is already locked (true for every
-     redeploy after the first healthy one), the new artifact is locked *before*
-     the swap so the replacement endpoint's lock-status check passes.
-6. Waits until the workload reports `running`.
-7. **Locks the artifact** once the workload is healthy, if it isn't already.
-   Draft artifacts are impermanent — the platform reclaims them, which stops
-   the workload — so locking promotes it to an immutable, versioned artifact
-   that keeps running.
-8. Sets action **outputs** and writes a summary (with the live endpoint and the
-   DataRobot console URL) to the run's **job summary**.
-9. Best-effort deletes a leftover unlocked draft from a previous deploy.
-
-The action is **idempotent** and **stateless** — it identifies the workload by
-the `name` in your manifest, so it needs no cached state between runs.
-
----
+To use another release, pass `dr_cli_version` and the checksum of the archive for your runner as `dr_cli_sha256`, or add the release's checksums to the table in a pull request. A version with no checksum fails the install.
 
 ## Inputs
 
-All inputs are optional except the two credentials (which may instead be
-supplied as `DATAROBOT_ENDPOINT` / `DATAROBOT_API_TOKEN` environment variables).
-
-| Input                 | Default    | Description |
-|-----------------------|------------|-------------|
-| `datarobot_endpoint`  | *(env)*    | DataRobot instance URL. Falls back to the `DATAROBOT_ENDPOINT` env var. |
-| `datarobot_api_token` | *(env)*    | DataRobot API key (pass from a secret). Falls back to the `DATAROBOT_API_TOKEN` env var. |
-| `manifest`            | *(auto)*   | Explicit manifest path. Empty = `.datarobot.yaml` then `.datarobot/workload.yaml`. |
-| `workload_name`       | *(manifest `name`)* | The deploy target's workload name. Override (e.g. `my-service-${{ github.ref_name }}`) to give each environment its own workload. |
-| `dr_cli_version`      | `latest`   | DataRobot CLI version to install (e.g. `v0.2.78`). |
-| `wait_timeout`        | `1200`     | Seconds to wait for the build and for the workload to become healthy. |
-| `prune_old_artifact`  | `true`     | Delete a leftover unlocked draft after a successful redeploy (the new, locked artifact is kept). |
+| Input | Default | Description |
+| --- | --- | --- |
+| `datarobot_endpoint` | the `DATAROBOT_ENDPOINT` variable | DataRobot instance URL. |
+| `datarobot_api_token` | the `DATAROBOT_API_TOKEN` variable | DataRobot API key. Pass it from a secret. |
+| `working_directory` | `.` | App directory, relative to the workspace. The manifest is searched for here and in the parent directories, up to the workspace. |
+| `promote` | `true` | Make the deployed version permanent by locking its artifact. A draft workload stops after 8 hours. |
+| `dry_run` | `false` | Print the plan and change nothing. |
+| `allow_create` | `false` | Let this run create the workload when the manifest has no `workloadId`. See [The first deploy](#the-first-deploy). |
+| `dr_cli_version` | `v0.13.1` | DataRobot CLI release to install. |
+| `dr_cli_sha256` | from the table | Checksum of the CLI archive. Required for a version that is not in the table. |
+| `dr_cli_download_base` | GitHub releases of `datarobot-oss/cli` | Where releases are served, as `<base>/<version>/<archive>`. Set it to a mirror in a restricted network. |
 
 ## Outputs
 
-| Output          | Example |
-|-----------------|---------|
-| `workload_id`   | `6a60fbcd…` |
-| `workload_name` | `my-service` |
-| `endpoint`      | `https://app.datarobot.com/api/v2/endpoints/workloads/…/` |
-| `console_url`   | `https://app.datarobot.com/console-nextgen/workloads/…/overview` |
-| `artifact_id`   | `6a60f6c1…` |
+| Output | Description |
+| --- | --- |
+| `workload_id` | The `workloadId` of the workload. Empty on a dry run. |
+| `endpoint` | The endpoint URL, with a trailing slash. Empty on a dry run. The endpoint is served under `/api/v2`, so calls to it need your API token. |
 
-Read them within the same job via `steps.<id>.outputs.*`, or expose them at the
-job level (`outputs:`) for downstream jobs that `needs:` the deploy — see
-[`examples/deploy-with-verify.yml`](./examples/deploy-with-verify.yml).
+The run also writes a summary with both values to the job summary.
 
----
+## The first deploy
 
-## Deploying to multiple environments
+Run `dr workload up` once on your machine and commit `.datarobot.yaml`. That is the supported path.
 
-Each **deploy target is one workload**, identified by `workload_name` (defaults
-to the manifest `name`). The action finds that workload by name and rolls it in
-place, so **repeated pushes to the same target always land on the same
-workload** — never a duplicate. Different targets need different names.
+To create the workload from CI instead, set `allow_create: true` for that one run. The run creates the workload, prints the `workloadId` in the log and the job summary, and then the runner's checkout is discarded. Commit `workloadId: <id>` to `.datarobot.yaml` and turn `allow_create` off. If you leave it on without committing the ID, every run creates another workload.
 
-Map branches to [GitHub Environments](https://docs.github.com/actions/deployment/targeting-different-environments/using-environments-for-deployment)
-with one job per environment — see
-[`examples/deploy-environments.yml`](./examples/deploy-environments.yml). For
-per-branch "review app" workloads, derive `workload_name` from the ref (e.g.
-`my-service-${{ github.ref_name }}`).
+## Plan on pull requests, apply on merge
 
-### Stopping an environment
+Call the action with `dry_run: "true"` on pull requests to print the plan, and without it on `main`. Put the apply job in a [GitHub environment](https://docs.github.com/actions/deployment/targeting-different-environments/using-environments-for-deployment) with required reviewers to add an approval step. See [`examples/plan-and-apply.yml`](./examples/plan-and-apply.yml). Pull requests from forks get no secrets, so the plan only works for branches in your repository.
 
-The companion **stop action** (`datarobot-oss/workload-deploy-github/stop@v1`)
-runs `dr workload stop` on the workload. GitHub has no direct equivalent of
-GitLab's `on_stop`, so wire it to the `delete` event (fires on branch deletion)
-and/or a manual `workflow_dispatch` — see
-[`examples/stop-on-branch-delete.yml`](./examples/stop-on-branch-delete.yml).
+Use a `concurrency` group, as in the quick start. A roll takes minutes, and a second deploy during a roll fails with HTTP 422. The action does not lock for you.
 
-Stopping is **non-destructive**: the workload is stopped, not deleted, so the
-next deploy (or `dr workload start <id>`) brings it straight back. This pairs
-naturally with per-branch review apps — the workload is reclaimed when the
-branch goes away.
+## Stopping a workload
 
----
+The companion action `datarobot-oss/workload-deploy-github/stop@v2` runs `dr workload stop` on the workload in the manifest. Stopping does not delete the workload. `dr workload start <id>` or the next deploy brings it back. See [`examples/stop.yml`](./examples/stop.yml).
+
+## Restricted networks
+
+A runner that cannot reach `github.com` cannot fetch this action or the CLI. To run in such a network:
+
+1. Copy this repository into your own organization and reference it from there, pinned to a commit.
+2. Serve the CLI release archives from an internal location with the layout `<base>/<version>/dr_<version>_<OS>_<arch>.tar.gz`, and set `dr_cli_download_base` to it. The action still checks each archive against the table or `dr_cli_sha256`, so a mirror cannot swap the binary.
+
+Your DataRobot URL must also be reachable from the runner. The CLI has a `--ca-cert` option for a private CA, which the action does not pass yet.
 
 ## Examples
 
-Ready-to-copy files in [`examples/`](./examples):
-
 | File | What it shows |
-|------|---------------|
-| [`.datarobot.yaml`](./examples/.datarobot.yaml) | Annotated manifest. |
-| [`deploy.yml`](./examples/deploy.yml) | Minimal single-job deploy. |
-| [`deploy-with-verify.yml`](./examples/deploy-with-verify.yml) | Deploy + a `smoke-test` job consuming the outputs. |
-| [`deploy-environments.yml`](./examples/deploy-environments.yml) | Branch → environment mapping (main → production, staging → staging). |
-| [`deploy-on-tags.yml`](./examples/deploy-on-tags.yml) | Deploy on version tags to a `production` environment. |
-| [`stop-on-branch-delete.yml`](./examples/stop-on-branch-delete.yml) | Stop the workload on branch delete / manually. |
+| --- | --- |
+| [`deploy.yml`](./examples/deploy.yml) | Deploy on every push to `main`. |
+| [`plan-and-apply.yml`](./examples/plan-and-apply.yml) | Plan on pull requests, apply on `main` behind an environment. |
+| [`deploy-with-verify.yml`](./examples/deploy-with-verify.yml) | Deploy, then a smoke test that uses the outputs. |
+| [`stop.yml`](./examples/stop.yml) | Stop the workload by hand. |
+| [`.datarobot.yaml`](./examples/.datarobot.yaml) | What the CLI writes. |
 
----
+## Requirements
 
-## Requirements & notes
-
-- **Checkout.** Run `actions/checkout` before this action so your repo (manifest
-  + source) is on disk.
-- **Runner.** Designed for Linux runners (`ubuntu-latest` or a Linux container).
-  It auto-installs missing tooling via `apt-get` or `apk`.
-- **Feature flag.** Code-to-Workload container builds require the
-  `ENABLE_WORKLOAD_API_CONTAINERS=true` flag on your DataRobot organization.
-  Ask your DataRobot admin if the build step fails with a permission error.
-- **Image architecture.** DataRobot builds `linux/amd64` — your Dockerfile must
-  produce a service that listens on `build.port`.
-- **Manifest fields.** `name` and `build.port` are required; everything else has
-  sensible defaults. `memory` uses decimal units (`512MB`, `2GB`) — Kubernetes
-  binary suffixes (`Mi`/`Gi`) are not supported. `port` must be `>= 1024`.
-- **Zero-downtime.** Rolling replacement is zero-downtime only with
-  `runtime.replicas >= 2`.
+- Linux or macOS runners. The architecture is x86_64 or arm64.
+- A DataRobot organization with Code-to-Workload builds enabled. The v1 README named the `ENABLE_WORKLOAD_API_CONTAINERS` flag for this. v2 has not re-checked it.
+- A `Dockerfile` that produces a service listening on the port in the manifest, which must be 1024 or above. The platform builds `linux/amd64`.
 
 ## Troubleshooting
 
 | Symptom | Fix |
-|---|---|
-| `DATAROBOT_ENDPOINT is not set` | Add the secrets and pass them via the action inputs (step 2/3). |
-| `No manifest found` | Add `.datarobot.yaml` to your repo root, or set the `manifest` input. Make sure `actions/checkout` ran first. |
-| `Image build FAILED` | The job prints the build log tail. Check your `Dockerfile`. |
-| Permission / flag error on build | Ask your admin to enable `ENABLE_WORKLOAD_API_CONTAINERS`. |
-| `Workload is failed` | Inspect with `dr workload logs <id>` locally, or the DataRobot console. |
+| --- | --- |
+| `No workloadId found in .datarobot.yaml` | Run `dr workload up` on your machine and commit the manifest, or set `allow_create: true` for one run. Make sure `actions/checkout` ran first. |
+| `No checksum for dr_...` | The version is not in `scripts/dr-cli-checksums.txt`. Pass `dr_cli_sha256`, or use a listed version. |
+| `The checksum of ... does not match` | The archive is not the one the table or `dr_cli_sha256` names. Check the mirror and the version. |
+| `DATAROBOT_ENDPOINT is not set` | Pass the `datarobot_endpoint` and `datarobot_api_token` inputs from secrets. |
+| `HTTP 422` about a pending replacement | Two deploys ran at once. Add a `concurrency` group. |
+| The workload stops after 8 hours | The version was deployed with `promote: "false"`. Deploy again with it on. |
+
+## Status
+
+The scripts are tested with bats against a stub `dr`, and the CLI behavior was observed with `dr` v0.13.1: `workload up --yes --promote`, `workload endpoint`, and a dry run from a fresh checkout. Not yet run: the action itself in a GitHub Actions workflow against a DataRobot instance, macOS runners, and a mirrored `dr_cli_download_base`.
+
+## Migrating from v1
+
+- The manifest is the one `dr workload up` writes. The v1 fields `build.port`, `build.health`, `runtime.cpu` and the rest are not read. Run `dr workload up` in your app directory to create the new manifest.
+- Workloads are no longer found by `name`. The `workloadId` in the manifest names the workload. To keep an existing workload, put its ID in the manifest.
+- The `manifest`, `workload_name`, `wait_timeout` and `prune_old_artifact` inputs are gone, and so are the `workload_name`, `console_url` and `artifact_id` outputs.
+- Per-branch workloads named after the ref are no longer supported. The CLI takes the name from the manifest.
+- The `v1` tag is unchanged.
+
+## Development
+
+Run the tests with [bats-core](https://github.com/bats-core/bats-core):
+
+```sh
+tests/run.sh
+```
+
+CI runs `actionlint`, `yamllint`, `shfmt`, `shellcheck`, `gitleaks` and the bats suite. Indentation for shell files is in `.editorconfig`.
 
 ## License
 

@@ -1,28 +1,45 @@
-# Minimal usage — deploy on pushes to the default branch.
+# Deploy on every push to main.
 #
-# Copy this into your repo as .github/workflows/deploy.yml, add a .datarobot.yaml
-# to your repo root, and set two repository secrets (Settings ▸ Secrets and
-# variables ▸ Actions):
-#   DATAROBOT_ENDPOINT    e.g. https://app.datarobot.com
-#   DATAROBOT_API_TOKEN   your DataRobot API key
+# Before the first run, deploy once from your machine with `dr workload up` and
+# commit the .datarobot.yaml it writes. That file holds the workloadId, and
+# without it the action stops with an error instead of creating a new workload
+# on every run.
+#
+# Add two secrets (Settings > Secrets and variables > Actions):
+#   DATAROBOT_ENDPOINT    for example https://app.datarobot.com
+#   DATAROBOT_API_TOKEN   a DataRobot API key
+#
+# Pin the action to a full commit SHA in a production repo, with the release
+# tag in a comment.
 name: Deploy to DataRobot
 
 on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+# One deploy at a time. A roll takes minutes, and a second deploy during a roll
+# fails. A newer push replaces a deploy that is still waiting, which is right
+# because the newest commit is the one to ship.
+concurrency:
+  group: deploy-datarobot
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # The clickable environment URL is filled from the deploy step's output.
+    timeout-minutes: 30
     environment:
       name: datarobot
       url: ${{ steps.deploy.outputs.endpoint }}
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          persist-credentials: false
       - id: deploy
-        uses: datarobot-oss/workload-deploy-github@v1
+        uses: datarobot-oss/workload-deploy-github@v2
         with:
           datarobot_endpoint: ${{ secrets.DATAROBOT_ENDPOINT }}
           datarobot_api_token: ${{ secrets.DATAROBOT_API_TOKEN }}

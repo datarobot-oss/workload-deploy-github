@@ -1,0 +1,53 @@
+# Print the plan on a pull request, and deploy after a merge to main.
+#
+# The `production` environment is the approval gate. Add required reviewers to
+# it (Settings > Environments), and the apply job waits for them. A reviewer can
+# read the plan from the pull request run before approving.
+#
+# A pull request from a fork has no access to secrets, so the plan job only
+# works for pull requests from branches in this repository.
+name: Plan and apply
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-datarobot-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: datarobot-oss/workload-deploy-github@v2
+        with:
+          datarobot_endpoint: ${{ secrets.DATAROBOT_ENDPOINT }}
+          datarobot_api_token: ${{ secrets.DATAROBOT_API_TOKEN }}
+          dry_run: "true"
+
+  apply:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.endpoint }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: deploy
+        uses: datarobot-oss/workload-deploy-github@v2
+        with:
+          datarobot_endpoint: ${{ secrets.DATAROBOT_ENDPOINT }}
+          datarobot_api_token: ${{ secrets.DATAROBOT_API_TOKEN }}
