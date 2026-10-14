@@ -1,100 +1,107 @@
 name: DataRobot Workload Deploy
 description: >-
-  Build a repository into a container image server-side and deploy it as a
-  DataRobot Workload (Code-to-Workload). Reads a .datarobot.yaml (or
-  .datarobot/workload.yaml) manifest — the single source of truth — and creates
-  or zero-downtime rolling-replaces the workload by name.
+  Deploy a repository to a DataRobot Workload with `dr workload up`, using a
+  pinned, checksum-verified DataRobot CLI. The workload is the one named by the
+  workloadId in the committed .datarobot.yaml, so every run rolls the same
+  workload.
 author: DataRobot, Inc.
 
 branding:
   icon: upload-cloud
   color: green
 
-# ------------------------------------------------------------------ #
-# The only *required* configuration is the two DataRobot credentials  #
-# (typically from repository secrets) plus a `.datarobot.yaml` (or    #
-# `.datarobot/workload.yaml`) at the root of the repo being deployed. #
-# Everything else has a sensible default.                             #
-# ------------------------------------------------------------------ #
 inputs:
   datarobot_endpoint:
     description: >-
-      DataRobot instance URL, e.g. https://app.datarobot.com. May be given with
-      or without a trailing /api/v2 — both work. Falls back to the
-      DATAROBOT_ENDPOINT environment variable if not set.
+      DataRobot instance URL, for example https://app.datarobot.com. The
+      /api/v2 suffix is optional. Falls back to the DATAROBOT_ENDPOINT
+      environment variable.
     required: false
     default: ""
   datarobot_api_token:
     description: >-
-      DataRobot API key (store it as a repository/organization secret and pass
-      it here, e.g. ${{ secrets.DATAROBOT_API_TOKEN }}). Falls back to the
-      DATAROBOT_API_TOKEN environment variable if not set.
+      DataRobot API key. Pass it from a secret. Falls back to the
+      DATAROBOT_API_TOKEN environment variable.
     required: false
     default: ""
-  manifest:
+  working_directory:
     description: >-
-      Path to the DataRobot manifest. Leave empty to auto-detect
-      .datarobot.yaml then .datarobot/workload.yaml.
+      Directory of the app, relative to the workspace. The CLI looks for
+      .datarobot.yaml here and in the parent directories.
     required: false
-    default: ""
-  workload_name:
+    default: "."
+  promote:
     description: >-
-      Name of the DataRobot workload to create/update. This is the deploy
-      target's identity — the same name is always rolled in place, so repeated
-      pushes to the same target go to the same workload. Leave empty to use the
-      manifest `name`. May contain expressions to give each environment its own
-      workload (e.g. my-service-${{ github.ref_name }}).
-    required: false
-    default: ""
-  dr_cli_version:
-    description: DataRobot CLI version to install (e.g. v0.2.78), or "latest".
-    required: false
-    default: latest
-  wait_timeout:
-    description: Seconds to wait for the image build and for the workload to become healthy.
-    required: false
-    default: "1200"
-  prune_old_artifact:
-    description: >-
-      After a successful redeploy, best-effort delete the previous artifact. A
-      healthy deploy locks its artifact (locked artifacts keep the workload
-      running and can never be deleted), so this only removes a still-draft
-      predecessor — e.g. one left by a deploy that never became healthy.
+      Make the deployed version permanent by locking its artifact. A draft
+      workload stops after 8 hours. A workload whose artifact is already locked
+      keeps getting locked versions without this.
     required: false
     default: "true"
+  dry_run:
+    description: >-
+      Print the plan and change nothing. Use it on pull requests, with the same
+      other inputs as the deploy.
+    required: false
+    default: "false"
+  allow_create:
+    description: >-
+      Let this run create the workload when .datarobot.yaml has no workloadId.
+      Use it once. The run prints the workloadId to commit, and without it every
+      later run creates another workload.
+    required: false
+    default: "false"
+  dr_cli_version:
+    description: >-
+      DataRobot CLI release to install. The action never uses "latest". A
+      version needs a checksum in scripts/dr-cli-checksums.txt, or
+      dr_cli_sha256.
+    required: false
+    default: v0.14.1
+  dr_cli_sha256:
+    description: >-
+      SHA-256 of the CLI archive for this runner. Overrides the checksum table,
+      so a version that is not in the table can be installed.
+    required: false
+    default: ""
+  dr_cli_download_base:
+    description: >-
+      Where CLI releases are served, as BASE_URL/VERSION/ARCHIVE. Defaults to
+      the GitHub releases of datarobot-oss/cli. Set it to a mirror in a network
+      that cannot reach GitHub.
+    required: false
+    default: ""
 
 outputs:
   workload_id:
-    description: The DataRobot workload id.
+    description: The workloadId of the workload. Empty on a dry run.
     value: ${{ steps.deploy.outputs.workload_id }}
-  workload_name:
-    description: The resolved workload name.
-    value: ${{ steps.deploy.outputs.workload_name }}
   endpoint:
-    description: The live invoke URL of the workload.
+    description: The endpoint URL of the workload, with a trailing slash. Empty on a dry run.
     value: ${{ steps.deploy.outputs.endpoint }}
-  console_url:
-    description: The DataRobot console (management UI) URL for the workload.
-    value: ${{ steps.deploy.outputs.console_url }}
-  artifact_id:
-    description: The id of the artifact backing the workload.
-    value: ${{ steps.deploy.outputs.artifact_id }}
 
 runs:
   using: composite
   steps:
+    - name: Check the manifest
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/scripts/check-manifest.sh"
+      env:
+        DR_WORKING_DIRECTORY: ${{ inputs.working_directory }}
+        DR_ALLOW_CREATE: ${{ inputs.allow_create }}
+    - name: Install the DataRobot CLI
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/scripts/install-dr-cli.sh"
+      env:
+        DR_CLI_VERSION: ${{ inputs.dr_cli_version }}
+        DR_CLI_SHA256: ${{ inputs.dr_cli_sha256 }}
+        DR_CLI_DOWNLOAD_BASE: ${{ inputs.dr_cli_download_base }}
     - id: deploy
+      name: Deploy
       shell: bash
       run: bash "$GITHUB_ACTION_PATH/scripts/deploy.sh"
       env:
-        # Credentials: prefer the inputs, fall back to any ambient env vars.
         DATAROBOT_ENDPOINT: ${{ inputs.datarobot_endpoint || env.DATAROBOT_ENDPOINT }}
         DATAROBOT_API_TOKEN: ${{ inputs.datarobot_api_token || env.DATAROBOT_API_TOKEN }}
-        # C2W (build-from-source) is feature-flagged in the CLI; always enable it.
-        DATAROBOT_CLI_FEATURE_WORKLOAD: "true"
-        SCRIPT_DIR: ${{ github.action_path }}/scripts
-        DR_MANIFEST: ${{ inputs.manifest }}
-        DR_WORKLOAD_NAME: ${{ inputs.workload_name }}
-        DR_CLI_VERSION: ${{ inputs.dr_cli_version }}
-        DR_WAIT_TIMEOUT: ${{ inputs.wait_timeout }}
-        DR_PRUNE_OLD_ARTIFACT: ${{ inputs.prune_old_artifact }}
+        DR_WORKING_DIRECTORY: ${{ inputs.working_directory }}
+        DR_PROMOTE: ${{ inputs.promote }}
+        DR_DRY_RUN: ${{ inputs.dry_run }}

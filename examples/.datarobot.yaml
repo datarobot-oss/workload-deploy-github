@@ -1,31 +1,34 @@
----
-# DataRobot Workload manifest — the single source of truth for a deployment.
+# A .datarobot.yaml as `dr workload up` writes it for a service with a Dockerfile.
 #
-# Place this file at the root of the repository you want to deploy (as
-# `.datarobot.yaml`, or as `.datarobot/workload.yaml`). The GitLab
-# `deploy` component reads it, builds this repo into a container image
-# server-side (from the Dockerfile below), and runs it as a workload on
-# the DataRobot Workload API.
+# Do not write this file by hand. Run `dr workload up` in the app directory on a
+# workstation. The command writes the manifest, deploys, and adds this line at
+# the top:
+#
+#   workloadId: <workloadId>  # managed by the CLI
+#
+# Commit the file with that line. The action reads the workloadId to find the
+# workload to roll, and it stops with an error when the line is missing.
 
-# Workload name. Must be unique in your DataRobot org — re-deploys with the
-# same name roll the existing workload onto the new image (same URL).
 name: my-service
+importance: low  # low | moderate | high | critical
 
-# Business criticality: low | moderate | high | critical
-importance: low
-
-build:
-  # Path to the Dockerfile DataRobot builds server-side (relative to repo root).
-  dockerfile: ./Dockerfile
-  # Port the container listens on. MUST be >= 1024.
-  port: 8080
-  # HTTP path used for readiness and liveness probes.
-  health: /healthz
+artifact:
+  name: my-service-artifact
+  type: service
+  spec:
+    containerGroups:
+      - name: default
+        containers:
+          - name: primary
+            primary: true
+            port: 8080  # must be 1024 or above
+            imageBuildConfig:  # built from this repository's Dockerfile
+              dockerfile:
+                source: provided
 
 runtime:
-  # Number of replicas. Use >= 2 for zero-downtime rolling redeploys.
-  replicas: 1
-  # CPU in cores (fractional allowed).
-  cpu: 0.5
-  # Memory: decimal string with unit B/KB/MB/GB (Ki/Mi/Gi are NOT supported).
-  memory: 512MB
+  containerGroups:
+    - replicaCount: 1
+      containers:
+        - name: primary
+          resourceAllocation: {cpu: 0.5, memory: 512MB}

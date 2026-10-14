@@ -1,0 +1,25 @@
+# Stop the workload manually from the Actions tab.
+#
+# Stopping doesn't delete the workload. To bring it back, deploy again, or run
+# `dr workload start WORKLOAD_ID` with the ID from the manifest.
+name: Stop the DataRobot workload
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: datarobot
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: datarobot-oss/workload-deploy-github/stop@v2
+        with:
+          datarobot_endpoint: ${{ secrets.DATAROBOT_ENDPOINT }}
+          datarobot_api_token: ${{ secrets.DATAROBOT_API_TOKEN }}

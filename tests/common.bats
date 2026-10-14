@@ -6,21 +6,16 @@ bats_require_minimum_version 1.5.0
 
 setup() {
   COMMON="$BATS_TEST_DIRNAME/../scripts/common.sh"
-  # common.sh may create $HOME/.local/bin, so keep it out of the real home.
-  export HOME="$BATS_TEST_TMPDIR/home"
-  mkdir -p "$HOME"
   cd "$BATS_TEST_TMPDIR"
-  unset DATAROBOT_ENDPOINT DATAROBOT_API_TOKEN DR_MANIFEST
+  # find_manifest stops at this directory, so a stray manifest above the temp
+  # directory cannot change the result.
+  export DR_SEARCH_ROOT="$BATS_TEST_TMPDIR"
+  unset DATAROBOT_ENDPOINT DATAROBOT_API_TOKEN
 }
 
 # Run one helper from common.sh in a fresh shell.
 call() {
   bash -c 'source "$1"; shift; "$@"' _ "$COMMON" "$@"
-}
-
-# Print the MANIFEST that resolve_manifest picks, with its log line dropped.
-resolved_manifest() {
-  bash -c 'source "$1"; resolve_manifest >/dev/null; printf %s "$MANIFEST"' _ "$COMMON"
 }
 
 @test "die prints the message to stderr and exits 1" {
@@ -62,44 +57,102 @@ resolved_manifest() {
   [ "$status" -eq 1 ]
 }
 
-@test "resolve_manifest picks .datarobot.yaml" {
+# Print the DATAROBOT_ENDPOINT that normalize_endpoint leaves behind.
+normalized() {
+  DATAROBOT_ENDPOINT="$1" bash -c 'source "$1"; normalize_endpoint; printf %s "$DATAROBOT_ENDPOINT"' _ "$COMMON"
+}
+
+@test "normalize_endpoint adds /api/v2 when it is missing" {
+  run normalized https://app.example.com
+  [ "$output" = "https://app.example.com/api/v2" ]
+}
+
+@test "normalize_endpoint keeps /api/v2 when it is present" {
+  run normalized https://app.example.com/api/v2
+  [ "$output" = "https://app.example.com/api/v2" ]
+}
+
+@test "normalize_endpoint drops trailing slashes" {
+  run normalized https://app.example.com/
+  [ "$output" = "https://app.example.com/api/v2" ]
+  run normalized https://app.example.com/api/v2/
+  [ "$output" = "https://app.example.com/api/v2" ]
+}
+
+@test "normalize_endpoint keeps a path prefix" {
+  run normalized https://example.com/datarobot
+  [ "$output" = "https://example.com/datarobot/api/v2" ]
+}
+
+@test "find_manifest prints the manifest in the given directory" {
   touch .datarobot.yaml
-  run resolved_manifest
+  run call find_manifest .
   [ "$status" -eq 0 ]
-  [ "$output" = ".datarobot.yaml" ]
+  [ "$output" = "$(pwd -P)/.datarobot.yaml" ]
 }
 
-@test "resolve_manifest falls back to .datarobot/workload.yaml" {
-  mkdir .datarobot
-  touch .datarobot/workload.yaml
-  run resolved_manifest
-  [ "$status" -eq 0 ]
-  [ "$output" = ".datarobot/workload.yaml" ]
-}
-
-@test "resolve_manifest prefers .datarobot.yaml when both exist" {
-  mkdir .datarobot
-  touch .datarobot.yaml .datarobot/workload.yaml
-  run resolved_manifest
-  [ "$output" = ".datarobot.yaml" ]
-}
-
-@test "resolve_manifest uses DR_MANIFEST over the defaults" {
-  touch .datarobot.yaml custom.yaml
-  DR_MANIFEST=custom.yaml run resolved_manifest
-  [ "$status" -eq 0 ]
-  [ "$output" = "custom.yaml" ]
-}
-
-@test "resolve_manifest fails when DR_MANIFEST points at a missing file" {
+@test "find_manifest searches upward from a subdirectory" {
   touch .datarobot.yaml
-  DR_MANIFEST=missing.yaml run call resolve_manifest
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"Manifest 'missing.yaml' not found"* ]]
+  mkdir -p service/src
+  run call find_manifest service/src
+  [ "$status" -eq 0 ]
+  [ "$output" = "$(pwd -P)/.datarobot.yaml" ]
 }
 
-@test "resolve_manifest fails when there is no manifest" {
-  run call resolve_manifest
+@test "find_manifest prefers the nearest manifest" {
+  touch .datarobot.yaml
+  mkdir service
+  touch service/.datarobot.yaml
+  run call find_manifest service
+  [ "$output" = "$(pwd -P)/service/.datarobot.yaml" ]
+}
+
+@test "find_manifest fails when there is no manifest up to the search root" {
+  mkdir empty
+  run call find_manifest empty
   [ "$status" -eq 1 ]
-  [[ "$output" == *"No manifest found"* ]]
+  [ -z "$output" ]
+}
+
+@test "find_manifest does not look above the search root" {
+  touch .datarobot.yaml
+  mkdir inner
+  DR_SEARCH_ROOT="$(pwd -P)/inner" run call find_manifest inner
+  [ "$status" -eq 1 ]
+}
+
+@test "find_manifest fails when the directory does not exist" {
+  run call find_manifest no-such-directory
+  [ "$status" -eq 1 ]
+}
+
+@test "manifest_workload_id prints the id and drops the trailing comment" {
+  printf 'workloadId: abc123 # managed by the CLI\nname: app\n' >m.yaml
+  run call manifest_workload_id m.yaml
+  [ "$status" -eq 0 ]
+  [ "$output" = "abc123" ]
+}
+
+@test "manifest_workload_id prints nothing when there is no workloadId" {
+  printf 'name: app\n' >m.yaml
+  run call manifest_workload_id m.yaml
+  [ -z "$output" ]
+}
+
+@test "manifest_workload_id ignores an empty value" {
+  printf 'workloadId:\nname: app\n' >m.yaml
+  run call manifest_workload_id m.yaml
+  [ -z "$output" ]
+}
+
+@test "manifest_workload_id ignores a commented-out line" {
+  printf '# workloadId: abc123\nname: app\n' >m.yaml
+  run call manifest_workload_id m.yaml
+  [ -z "$output" ]
+}
+
+@test "manifest_workload_id ignores a nested key of the same name" {
+  printf 'runtime:\n  workloadId: nested\n' >m.yaml
+  run call manifest_workload_id m.yaml
+  [ -z "$output" ]
 }

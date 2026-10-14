@@ -1,5 +1,5 @@
 root = true
 
-[*.{sh,bats}]
+[*.{sh,bash,bats}]
 indent_style = space
 indent_size = 2
