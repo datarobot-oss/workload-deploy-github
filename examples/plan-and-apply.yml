@@ -1,11 +1,11 @@
 # Print the plan on a pull request, and deploy after a merge to main.
 #
 # The `production` environment is the approval gate. Add required reviewers to
-# it (Settings > Environments), and the apply job waits for them. A reviewer can
-# read the plan from the pull request run before approving.
+# it (Settings > Environments), and the apply job waits for them. Reviewers can
+# read the plan in the pull request run before they approve.
 #
-# A pull request from a fork has no access to secrets, so the plan job only
-# works for pull requests from branches in this repository.
+# A pull request from a fork gets no secrets, so the plan job works only for
+# pull requests from branches in this repository.
 name: Plan and apply
 
 on:

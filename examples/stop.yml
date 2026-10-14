@@ -1,7 +1,7 @@
-# Stop the workload by hand from the Actions tab.
+# Stop the workload manually from the Actions tab.
 #
-# Stopping does not delete the workload. `dr workload start <id>` or the next
-# deploy brings it back.
+# Stopping doesn't delete the workload. To bring it back, deploy again, or run
+# `dr workload start WORKLOAD_ID` with the ID from the manifest.
 name: Stop the DataRobot workload
 
 on:

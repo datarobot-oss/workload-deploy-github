@@ -1,9 +1,10 @@
 # A .datarobot.yaml as `dr workload up` writes it for a service with a Dockerfile.
 #
-# Do not write this file by hand. Run `dr workload up` in your app directory on
-# your machine. It writes the manifest, deploys, and adds this line at the top:
+# Do not write this file by hand. Run `dr workload up` in the app directory on a
+# workstation. The command writes the manifest, deploys, and adds this line at
+# the top:
 #
-#   workloadId: <the ID of your workload> # managed by the CLI
+#   workloadId: <workloadId>  # managed by the CLI
 #
 # Commit the file with that line. The action reads the workloadId to find the
 # workload to roll, and it stops with an error when the line is missing.

@@ -1,16 +1,16 @@
 # Deploy on every push to main.
 #
-# Before the first run, deploy once from your machine with `dr workload up` and
-# commit the .datarobot.yaml it writes. That file holds the workloadId, and
-# without it the action stops with an error instead of creating a new workload
-# on every run.
+# Before the first run, run `dr workload up` once on a workstation and commit
+# the .datarobot.yaml that it writes. That file holds the workloadId. Without
+# it, the action stops with an error instead of creating a workload on every run.
 #
 # Add two secrets (Settings > Secrets and variables > Actions):
-#   DATAROBOT_ENDPOINT    for example https://app.datarobot.com
-#   DATAROBOT_API_TOKEN   a DataRobot API key
+#   DATAROBOT_ENDPOINT    The URL of the DataRobot instance, for example
+#                         https://app.datarobot.com.
+#   DATAROBOT_API_TOKEN   A DataRobot API key.
 #
-# Pin the action to a full commit SHA in a production repo, with the release
-# tag in a comment.
+# In a production repository, pin the action to a full commit SHA and name the
+# release tag in a comment.
 name: Deploy to DataRobot
 
 on:
@@ -20,9 +20,9 @@ on:
 permissions:
   contents: read
 
-# One deploy at a time. A roll takes minutes, and a second deploy during a roll
-# fails. A newer push replaces a deploy that is still waiting, which is right
-# because the newest commit is the one to ship.
+# Run one deploy at a time. A roll takes minutes, and a second deploy during a
+# roll fails. A later push replaces a deploy that is waiting, because the last
+# commit is the one to ship.
 concurrency:
   group: deploy-datarobot
   cancel-in-progress: false

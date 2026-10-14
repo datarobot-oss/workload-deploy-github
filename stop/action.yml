@@ -38,7 +38,7 @@ inputs:
     default: ""
   dr_cli_download_base:
     description: >-
-      Where CLI releases are served, as <base>/<version>/<archive>. Defaults to
+      Where CLI releases are served, as BASE_URL/VERSION/ARCHIVE. Defaults to
       the GitHub releases of datarobot-oss/cli.
     required: false
     default: ""
