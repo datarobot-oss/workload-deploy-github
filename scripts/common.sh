@@ -37,7 +37,8 @@ require_cli() {
 # Run the DataRobot CLI. With DR_CLI_IMAGE set, the CLI runs in that image as
 # the runner's user, so the files it writes stay writable. The search root is
 # mounted at the same path, so --dir means the same on both sides. The endpoint
-# and the token go in by name, so the token is not on the command line.
+# and the token go in by name, so the token is not on the command line. The
+# proxy variables of the runner go in the same way when they are set.
 dr() {
   if [ -z "${DR_CLI_IMAGE:-}" ]; then
     command dr "$@"
@@ -52,6 +53,8 @@ dr() {
     --env HOME=/tmp \
     --env DATAROBOT_ENDPOINT \
     --env DATAROBOT_API_TOKEN \
+    --env HTTP_PROXY --env HTTPS_PROXY --env NO_PROXY \
+    --env http_proxy --env https_proxy --env no_proxy \
     "$DR_CLI_IMAGE" "$@"
 }
 

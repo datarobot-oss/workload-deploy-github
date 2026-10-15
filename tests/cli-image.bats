@@ -73,6 +73,16 @@ call() {
   ! grep -q "s3cret-token-value" "$DOCKER_CALLS"
 }
 
+@test "dr hands the proxy variables of the runner to the container by name" {
+  HTTPS_PROXY=http://proxy.example:3128 no_proxy=internal.example DR_CLI_IMAGE=ghcr.io/datarobot-oss/cli:v0.14.1 run call dr workload up
+
+  for name in HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy; do
+    grep -qx "$name" "$DOCKER_CALLS"
+  done
+  ! grep -q "proxy.example" "$DOCKER_CALLS"
+  ! grep -q "internal.example" "$DOCKER_CALLS"
+}
+
 @test "dr passes on the exit code of the container" {
   DOCKER_STUB_EXIT=7 DR_CLI_IMAGE=ghcr.io/datarobot-oss/cli:v0.14.1 run call dr workload up
 

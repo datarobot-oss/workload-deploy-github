@@ -119,7 +119,7 @@ A runner that can't reach `github.com` can't fetch this action, and a runner tha
 1. Copy this repository into an organization that you control, and reference the copy pinned to a commit.
 2. Copy the CLI image into a registry that the runner can reach, and set `dr_cli_image` to the copy. Use a digest to make sure that the copy is the image that you reviewed.
 
-The DataRobot URL must also be reachable from the runner. For a private certificate authority (CA), the CLI has a `--ca-cert` option, which the action doesn't pass.
+The container gets the `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` variables of the runner, in upper and lower case, when they are set. The DataRobot URL must also be reachable from the runner. For a private certificate authority (CA), the CLI has a `--ca-cert` option, which the action doesn't pass.
 
 ## Examples
 
