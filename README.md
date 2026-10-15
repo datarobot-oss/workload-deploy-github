@@ -157,7 +157,7 @@ The following table lists common errors and their fixes.
 
 ## Status
 
-The scripts have bats tests that run against stub `dr` and `docker` commands. The behavior of the CLI was observed with `dr` v0.14.1: `workload up --yes --promote`, `workload endpoint`, a dry run from a clean checkout, `--sync-env` on a manifest and a `.env` file, and a second create with the same name. A dry run of the scripts with `--sync-env` ran in the `v0.14.2` image on a workstation, and the image wrote `.datarobot.yaml` into a Linux workspace owned by the runner's user ID. Not tested: a run of the image-based action on a GitHub-hosted runner, a mirrored `dr_cli_image`, and `promote: "true"`.
+The scripts have bats tests that run against stub `dr` and `docker` commands. The action ran from a workflow on a GitHub-hosted `ubuntu-latest` runner against a DataRobot instance with the `v0.14.2` image: the guard, a dry run with `sync_env`, a create, a stop and a delete. The runner's user wrote the manifest into the workspace. Not tested: a mirrored `dr_cli_image` and `promote: "true"`.
 
 ## Migrate from v1
 
