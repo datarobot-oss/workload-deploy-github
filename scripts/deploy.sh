@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Deploy the app with `dr workload up` and report the workload.
 #
-# A dry run passes the same flags plus --dry-run, so the plan matches what the
-# apply does. After a real run the script writes workload_id and endpoint to
-# GITHUB_OUTPUT and a summary to GITHUB_STEP_SUMMARY.
+# A dry run adds --dry-run to the same flags, so the plan matches the apply. A
+# real run writes workload_id and endpoint to GITHUB_OUTPUT and a summary to
+# GITHUB_STEP_SUMMARY.
 #
 # Environment: DATAROBOT_ENDPOINT, DATAROBOT_API_TOKEN, DR_WORKING_DIRECTORY
 # (default .), DR_PROMOTE (default true), DR_SYNC_ENV (default false),
-# DR_DRY_RUN (default false), DR_CLI_IMAGE (run the CLI in this image).
+# DR_DRY_RUN (default false), DR_CLI_IMAGE (default: the CLI on PATH).
 set -euo pipefail
 
 # shellcheck source=scripts/common.sh

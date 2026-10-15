@@ -2,7 +2,7 @@
 # Stop the workload named by the manifest with `dr workload stop`.
 #
 # Environment: DATAROBOT_ENDPOINT, DATAROBOT_API_TOKEN, DR_WORKING_DIRECTORY
-# (default .), DR_CLI_IMAGE (run the CLI in this image).
+# (default .), DR_CLI_IMAGE (default: the CLI on PATH).
 set -euo pipefail
 
 # shellcheck source=scripts/common.sh

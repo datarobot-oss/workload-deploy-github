@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
-# Tests for how scripts/common.sh runs the DataRobot CLI: `dr` and require_cli.
-# The `docker` stub records its arguments and never runs a container.
+# Tests for `dr` and require_cli in scripts/common.sh. The `docker` stub runs
+# no container.
 
 bats_require_minimum_version 1.5.0
 
@@ -141,7 +141,6 @@ call() {
   [[ "$output" == *"Docker"* ]]
 }
 
-# The default image of an action, read from the repo.
 default_cli_image() {
   awk '
     $1 == "dr_cli_image:" { found = 1; next }

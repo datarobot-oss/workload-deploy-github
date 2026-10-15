@@ -52,12 +52,11 @@ inputs:
     default: "false"
   sync_env:
     description: >-
-      Pass --sync-env to the CLI, which brings the manifest into line with the
-      .env file in the app directory before the deploy. It adds the variables
-      the manifest lacks, rewrites the ones whose value differs, and removes the
-      ones .env does not have. A variable that .env also names replaces its
-      manifest entry, a source: api-key entry included. Without a .env file it
-      changes nothing.
+      Pass --sync-env to the CLI, which updates the environment variables in the
+      manifest from the .env file in the app directory before the deploy. A
+      variable that .env names replaces its manifest entry, including a
+      source: api-key entry. A manifest variable that .env lacks is removed.
+      Without a .env file, nothing changes.
     required: false
     default: "false"
   dr_cli_image:

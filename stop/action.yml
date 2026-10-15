@@ -40,8 +40,7 @@ inputs:
 runs:
   using: composite
   steps:
-    # This action lives in the stop/ folder, so the shared scripts are one
-    # level up at the repository root.
+    # The shared scripts are one level up, in the repository root.
     - name: Check the manifest
       shell: bash
       run: bash "$GITHUB_ACTION_PATH/../scripts/check-manifest.sh"

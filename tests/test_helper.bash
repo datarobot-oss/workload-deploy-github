@@ -2,15 +2,14 @@
 
 # Put stubs for `dr` and `docker` first on PATH.
 #
-# The stub `dr` appends its arguments to $DR_CALLS. `workload up` fails with
-# $DR_STUB_UP_EXIT when that is set, prints only a plan for --dry-run, and
-# otherwise writes a manifest with workloadId $DR_STUB_WORKLOAD_ID unless the
-# manifest in --dir already has one. `workload endpoint` prints
-# $DR_STUB_ENDPOINT.
+# `dr` appends its arguments to $DR_CALLS. `workload up` exits with
+# $DR_STUB_UP_EXIT when it is set, prints only a plan for --dry-run, and
+# otherwise writes a manifest with workloadId $DR_STUB_WORKLOAD_ID unless --dir
+# already has one. `workload endpoint` prints $DR_STUB_ENDPOINT.
 #
-# The stub `docker` appends its arguments to $DOCKER_CALLS, one per line, and
-# the DATAROBOT_ENDPOINT it sees to $DOCKER_CALLS.endpoint. It exits with
-# $DOCKER_STUB_EXIT and never runs a container.
+# `docker` appends its arguments, one per line, to $DOCKER_CALLS, and the
+# DATAROBOT_ENDPOINT it sees to $DOCKER_CALLS.endpoint. It exits with
+# $DOCKER_STUB_EXIT and runs no container.
 install_stubs() {
   mkdir -p "$BATS_TEST_TMPDIR/bin"
   export DR_CALLS="$BATS_TEST_TMPDIR/dr-calls"

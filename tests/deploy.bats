@@ -1,5 +1,6 @@
 #!/usr/bin/env bats
-# Tests for scripts/deploy.sh and scripts/stop.sh, run against a stub `dr`.
+# Tests for scripts/deploy.sh and scripts/stop.sh, run against stub `dr` and
+# `docker` commands.
 
 bats_require_minimum_version 1.5.0
 
