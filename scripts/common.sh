@@ -19,6 +19,42 @@ require_credentials() {
   [ -n "${DATAROBOT_API_TOKEN:-}" ] || die "DATAROBOT_API_TOKEN is not set. Pass the datarobot_api_token input from a secret or set the variable."
 }
 
+# Check how the CLI will run. With DR_CLI_IMAGE set, `dr` runs in that container
+# image, so Docker must be there and the image must name a release: a digest or
+# a tag other than latest. Without it, `dr` is the one on PATH.
+require_cli() {
+  [ -n "${DR_CLI_IMAGE:-}" ] || return 0
+  have docker || die "Docker is not available. The action runs the DataRobot CLI from a container image, so it needs a Linux runner with Docker."
+  # Look at the last path component only, so a registry port is not a tag.
+  case "${DR_CLI_IMAGE##*/}" in
+  *@*) ;;
+  *:latest) die "dr_cli_image $DR_CLI_IMAGE uses the latest tag. Pin a release tag or a digest." ;;
+  *:*) ;;
+  *) die "dr_cli_image $DR_CLI_IMAGE has no tag. Pin a release tag or a digest." ;;
+  esac
+}
+
+# Run the DataRobot CLI. With DR_CLI_IMAGE set, the CLI runs in that image as
+# the runner's user, so the files it writes stay writable. The search root is
+# mounted at the same path, so --dir means the same on both sides. The endpoint
+# and the token go in by name, so the token is not on the command line.
+dr() {
+  if [ -z "${DR_CLI_IMAGE:-}" ]; then
+    command dr "$@"
+    return
+  fi
+  local root
+  root=$(cd "${DR_SEARCH_ROOT:-${GITHUB_WORKSPACE:-$PWD}}" && pwd -P) || return 1
+  docker run --rm \
+    --user "$(id -u):$(id -g)" \
+    --volume "$root:$root" \
+    --workdir "$(pwd -P)" \
+    --env HOME=/tmp \
+    --env DATAROBOT_ENDPOINT \
+    --env DATAROBOT_API_TOKEN \
+    "$DR_CLI_IMAGE" "$@"
+}
+
 # Make DATAROBOT_ENDPOINT end in /api/v2, which the CLI requires: it gets HTTP
 # 404 from a bare host. Accept the URL with or without the suffix and with or
 # without a trailing slash, as v1 of the action did.

@@ -29,20 +29,13 @@ inputs:
       .datarobot.yaml here and in the parent directories.
     required: false
     default: "."
-  dr_cli_version:
-    description: DataRobot CLI release to install. The action never uses "latest".
-    required: false
-    default: v0.14.1
-  dr_cli_sha256:
-    description: SHA-256 of the CLI archive for this runner. Overrides the checksum table.
-    required: false
-    default: ""
-  dr_cli_download_base:
+  dr_cli_image:
     description: >-
-      Where CLI releases are served, as BASE_URL/VERSION/ARCHIVE. Defaults to
-      the GitHub releases of datarobot-oss/cli.
+      Container image that runs the DataRobot CLI. The action never uses the
+      latest tag, so name a release tag or a digest. Set it to a mirror in a
+      network that cannot reach ghcr.io.
     required: false
-    default: ""
+    default: ghcr.io/datarobot-oss/cli:v0.14.2
 
 runs:
   using: composite
@@ -54,13 +47,6 @@ runs:
       run: bash "$GITHUB_ACTION_PATH/../scripts/check-manifest.sh"
       env:
         DR_WORKING_DIRECTORY: ${{ inputs.working_directory }}
-    - name: Install the DataRobot CLI
-      shell: bash
-      run: bash "$GITHUB_ACTION_PATH/../scripts/install-dr-cli.sh"
-      env:
-        DR_CLI_VERSION: ${{ inputs.dr_cli_version }}
-        DR_CLI_SHA256: ${{ inputs.dr_cli_sha256 }}
-        DR_CLI_DOWNLOAD_BASE: ${{ inputs.dr_cli_download_base }}
     - name: Stop
       shell: bash
       run: bash "$GITHUB_ACTION_PATH/../scripts/stop.sh"
@@ -68,3 +54,4 @@ runs:
         DATAROBOT_ENDPOINT: ${{ inputs.datarobot_endpoint || env.DATAROBOT_ENDPOINT }}
         DATAROBOT_API_TOKEN: ${{ inputs.datarobot_api_token || env.DATAROBOT_API_TOKEN }}
         DR_WORKING_DIRECTORY: ${{ inputs.working_directory }}
+        DR_CLI_IMAGE: ${{ inputs.dr_cli_image }}

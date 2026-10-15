@@ -6,13 +6,15 @@
 # GITHUB_OUTPUT and a summary to GITHUB_STEP_SUMMARY.
 #
 # Environment: DATAROBOT_ENDPOINT, DATAROBOT_API_TOKEN, DR_WORKING_DIRECTORY
-# (default .), DR_PROMOTE (default true), DR_DRY_RUN (default false).
+# (default .), DR_PROMOTE (default true), DR_SYNC_ENV (default false),
+# DR_DRY_RUN (default false), DR_CLI_IMAGE (run the CLI in this image).
 set -euo pipefail
 
 # shellcheck source=scripts/common.sh
 . "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 require_credentials
+require_cli
 normalize_endpoint
 
 dir="${DR_WORKING_DIRECTORY:-.}"
@@ -20,6 +22,9 @@ dir="${DR_WORKING_DIRECTORY:-.}"
 args=(workload up --yes --dir "$dir")
 if [ "${DR_PROMOTE:-true}" = true ]; then
   args+=(--promote)
+fi
+if [ "${DR_SYNC_ENV:-false}" = true ]; then
+  args+=(--sync-env)
 fi
 if [ "${DR_DRY_RUN:-false}" = true ]; then
   args+=(--dry-run)

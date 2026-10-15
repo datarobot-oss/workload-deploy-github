@@ -1,9 +1,9 @@
 name: DataRobot Workload Deploy
 description: >-
-  Deploy a repository to a DataRobot Workload with `dr workload up`, using a
-  pinned, checksum-verified DataRobot CLI. The workload is the one named by the
-  workloadId in the committed .datarobot.yaml, so every run rolls the same
-  workload.
+  Deploy a repository to a DataRobot Workload with `dr workload up`, running a
+  pinned release of the DataRobot CLI from its container image. The workload is
+  the one named by the workloadId in the committed .datarobot.yaml, so every run
+  rolls the same workload. Needs a Linux runner with Docker.
 author: DataRobot, Inc.
 
 branding:
@@ -50,26 +50,23 @@ inputs:
       later run creates another workload.
     required: false
     default: "false"
-  dr_cli_version:
+  sync_env:
     description: >-
-      DataRobot CLI release to install. The action never uses "latest". A
-      version needs a checksum in scripts/dr-cli-checksums.txt, or
-      dr_cli_sha256.
+      Pass --sync-env to the CLI, which brings the manifest into line with the
+      .env file in the app directory before the deploy. It adds the variables
+      the manifest lacks, rewrites the ones whose value differs, and removes the
+      ones .env does not have. A variable that .env also names replaces its
+      manifest entry, a source: api-key entry included. Without a .env file it
+      changes nothing.
     required: false
-    default: v0.14.1
-  dr_cli_sha256:
+    default: "false"
+  dr_cli_image:
     description: >-
-      SHA-256 of the CLI archive for this runner. Overrides the checksum table,
-      so a version that is not in the table can be installed.
+      Container image that runs the DataRobot CLI. The action never uses the
+      latest tag, so name a release tag or a digest. Set it to a mirror in a
+      network that cannot reach ghcr.io.
     required: false
-    default: ""
-  dr_cli_download_base:
-    description: >-
-      Where CLI releases are served, as BASE_URL/VERSION/ARCHIVE. Defaults to
-      the GitHub releases of datarobot-oss/cli. Set it to a mirror in a network
-      that cannot reach GitHub.
-    required: false
-    default: ""
+    default: ghcr.io/datarobot-oss/cli:v0.14.2
 
 outputs:
   workload_id:
@@ -88,13 +85,6 @@ runs:
       env:
         DR_WORKING_DIRECTORY: ${{ inputs.working_directory }}
         DR_ALLOW_CREATE: ${{ inputs.allow_create }}
-    - name: Install the DataRobot CLI
-      shell: bash
-      run: bash "$GITHUB_ACTION_PATH/scripts/install-dr-cli.sh"
-      env:
-        DR_CLI_VERSION: ${{ inputs.dr_cli_version }}
-        DR_CLI_SHA256: ${{ inputs.dr_cli_sha256 }}
-        DR_CLI_DOWNLOAD_BASE: ${{ inputs.dr_cli_download_base }}
     - id: deploy
       name: Deploy
       shell: bash
@@ -104,4 +94,6 @@ runs:
         DATAROBOT_API_TOKEN: ${{ inputs.datarobot_api_token || env.DATAROBOT_API_TOKEN }}
         DR_WORKING_DIRECTORY: ${{ inputs.working_directory }}
         DR_PROMOTE: ${{ inputs.promote }}
+        DR_SYNC_ENV: ${{ inputs.sync_env }}
+        DR_CLI_IMAGE: ${{ inputs.dr_cli_image }}
         DR_DRY_RUN: ${{ inputs.dry_run }}
