@@ -1,19 +1,21 @@
 # Shared fixtures for the bats tests. Load with `load test_helper`.
 
-# Put stubs for `dr` and `uname` first on PATH.
+# Put stubs for `dr` and `docker` first on PATH.
 #
-# The stub `dr` appends its arguments to $DR_CALLS. `workload up` fails with
-# $DR_STUB_UP_EXIT when that is set, prints only a plan for --dry-run, and
-# otherwise writes a manifest with workloadId $DR_STUB_WORKLOAD_ID unless the
-# manifest in --dir already has one. `workload endpoint` prints
-# $DR_STUB_ENDPOINT.
+# `dr` appends its arguments to $DR_CALLS. `workload up` exits with
+# $DR_STUB_UP_EXIT when it is set, prints only a plan for --dry-run, and
+# otherwise writes a manifest with workloadId $DR_STUB_WORKLOAD_ID unless --dir
+# already has one. `workload endpoint` prints $DR_STUB_ENDPOINT.
 #
-# The stub `uname` reports $UNAME_S and $UNAME_M, so the platform is the same
-# on every machine that runs the tests.
+# `docker` appends its arguments, one per line, to $DOCKER_CALLS, and the
+# DATAROBOT_ENDPOINT it sees to $DOCKER_CALLS.endpoint. It exits with
+# $DOCKER_STUB_EXIT and runs no container.
 install_stubs() {
   mkdir -p "$BATS_TEST_TMPDIR/bin"
   export DR_CALLS="$BATS_TEST_TMPDIR/dr-calls"
+  export DOCKER_CALLS="$BATS_TEST_TMPDIR/docker-calls"
   : >"$DR_CALLS"
+  : >"$DOCKER_CALLS"
 
   cat >"$BATS_TEST_TMPDIR/bin/dr" <<'EOF'
 #!/usr/bin/env bash
@@ -47,46 +49,13 @@ case "$1 $2" in
 esac
 EOF
 
-  cat >"$BATS_TEST_TMPDIR/bin/uname" <<'EOF'
+  cat >"$BATS_TEST_TMPDIR/bin/docker" <<'EOF'
 #!/usr/bin/env bash
-case "$1" in
--s) echo "${UNAME_S:-Linux}" ;;
--m) echo "${UNAME_M:-x86_64}" ;;
-esac
+printf '%s\n' "$@" >>"$DOCKER_CALLS"
+echo "$DATAROBOT_ENDPOINT" >>"$DOCKER_CALLS.endpoint"
+exit "${DOCKER_STUB_EXIT:-0}"
 EOF
 
-  chmod +x "$BATS_TEST_TMPDIR/bin/dr" "$BATS_TEST_TMPDIR/bin/uname"
+  chmod +x "$BATS_TEST_TMPDIR/bin/dr" "$BATS_TEST_TMPDIR/bin/docker"
   PATH="$BATS_TEST_TMPDIR/bin:$PATH"
-}
-
-# The SHA-256 of a file, as a bare hex string.
-sha256_of() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$1" | cut -d' ' -f1
-  else
-    shasum -a 256 "$1" | cut -d' ' -f1
-  fi
-}
-
-# Build a fake release of the CLI under $DR_CLI_DOWNLOAD_BASE/<version>/.
-# Usage: make_release <version> [<platform>]   (platform defaults to Linux_x86_64)
-# Sets ASSET to the tarball name and ASSET_SHA to its SHA-256. The tarball holds
-# one executable, `dr`, that prints a version line.
-# shellcheck disable=SC2034  # ASSET and ASSET_SHA are read by the tests that call this.
-make_release() {
-  local version=$1 platform=${2:-Linux_x86_64} src
-  ASSET="dr_${version}_${platform}.tar.gz"
-  src="$BATS_TEST_TMPDIR/release-src"
-  mkdir -p "$src" "$BATS_TEST_TMPDIR/releases/$version"
-  # The stub prints a flood of extra lines when STUB_VERSION_NOISE is set.
-  cat >"$src/dr" <<EOF
-#!/usr/bin/env bash
-echo "stub dr $version"
-if [ -n "\${STUB_VERSION_NOISE:-}" ]; then
-  seq 1 100000
-fi
-EOF
-  chmod +x "$src/dr"
-  tar -czf "$BATS_TEST_TMPDIR/releases/$version/$ASSET" -C "$src" dr
-  ASSET_SHA=$(sha256_of "$BATS_TEST_TMPDIR/releases/$version/$ASSET")
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env bats
-# Tests for scripts/deploy.sh and scripts/stop.sh, run against a stub `dr`.
+# Tests for scripts/deploy.sh and scripts/stop.sh, run against stub `dr` and
+# `docker` commands.
 
 bats_require_minimum_version 1.5.0
 
@@ -20,7 +21,7 @@ setup() {
   export GITHUB_STEP_SUMMARY="$BATS_TEST_TMPDIR/github-summary"
   : >"$GITHUB_OUTPUT"
   : >"$GITHUB_STEP_SUMMARY"
-  unset DR_DRY_RUN DR_PROMOTE DR_STUB_UP_EXIT DR_STUB_WORKLOAD_ID
+  unset DR_DRY_RUN DR_PROMOTE DR_SYNC_ENV DR_CLI_IMAGE DR_STUB_UP_EXIT DR_STUB_WORKLOAD_ID
 }
 
 @test "deploy runs up with --yes, --promote and the working directory" {
@@ -49,6 +50,45 @@ setup() {
 
   [ "$status" -eq 0 ]
   grep -qx "workload up --yes --dir $APP" "$DR_CALLS"
+}
+
+@test "deploy adds --sync-env when sync_env is true" {
+  DR_SYNC_ENV=true run "$DEPLOY"
+
+  [ "$status" -eq 0 ]
+  grep -qx "workload up --yes --dir $APP --promote --sync-env" "$DR_CALLS"
+}
+
+@test "deploy leaves out --sync-env by default and when sync_env is false" {
+  run "$DEPLOY"
+  DR_SYNC_ENV=false run "$DEPLOY"
+
+  [ "$status" -eq 0 ]
+  ! grep -q -- "--sync-env" "$DR_CALLS"
+}
+
+@test "a dry run keeps --sync-env so the plan matches the apply" {
+  DR_SYNC_ENV=true DR_DRY_RUN=true run "$DEPLOY"
+
+  [ "$status" -eq 0 ]
+  grep -qx "workload up --yes --dir $APP --promote --sync-env --dry-run" "$DR_CALLS"
+}
+
+@test "deploy runs the CLI in the image with the normalized endpoint" {
+  DR_CLI_IMAGE=ghcr.io/datarobot-oss/cli:v0.14.1 run "$DEPLOY"
+
+  [ "$status" -eq 0 ]
+  [ ! -s "$DR_CALLS" ]
+  grep -qx "ghcr.io/datarobot-oss/cli:v0.14.1" "$DOCKER_CALLS"
+  grep -qx "https://app.example.com/api/v2" "$DOCKER_CALLS.endpoint"
+}
+
+@test "deploy fails before running anything when the image is latest" {
+  DR_CLI_IMAGE=ghcr.io/datarobot-oss/cli:latest run "$DEPLOY"
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"latest"* ]]
+  [ ! -s "$DOCKER_CALLS" ]
 }
 
 @test "a dry run adds --dry-run to the same flags and writes no outputs" {
@@ -119,6 +159,23 @@ setup() {
 
   [ "$status" -eq 0 ]
   grep -qx "workload stop --yes --dir $APP" "$DR_CALLS"
+}
+
+@test "stop runs the CLI in the image" {
+  DR_CLI_IMAGE=ghcr.io/datarobot-oss/cli:v0.14.1 run "$STOP"
+
+  [ "$status" -eq 0 ]
+  [ ! -s "$DR_CALLS" ]
+  grep -qx "ghcr.io/datarobot-oss/cli:v0.14.1" "$DOCKER_CALLS"
+  grep -qx "stop" "$DOCKER_CALLS"
+}
+
+@test "stop fails before running anything when the image has no tag" {
+  DR_CLI_IMAGE=ghcr.io/datarobot-oss/cli run "$STOP"
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"no tag"* ]]
+  [ ! -s "$DOCKER_CALLS" ]
 }
 
 @test "stop passes on the exit code of dr" {
