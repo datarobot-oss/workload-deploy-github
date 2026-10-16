@@ -154,6 +154,7 @@ The following table lists common errors and their fixes.
 | `answered HTTP 404, so the CLI could not verify your credentials` | The endpoint isn't the URL of a DataRobot instance. Check the host in `datarobot_endpoint`. |
 | `HTTP 422` about a pending replacement | Two deploys ran at once. Add a `concurrency` group. |
 | The workload stops after 8 hours | The version was deployed with `promote: "false"`. Deploy again with `promote` on. |
+| A call right after the first deploy returns HTTP 401 or 503 | The route of a new workload needs up to about 20 seconds after `dr workload up` returns. Run the job again. A deploy of an existing workload waits for the new version, so it doesn't show this. |
 
 ## Status
 
